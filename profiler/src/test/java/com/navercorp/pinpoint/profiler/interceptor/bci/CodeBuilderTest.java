@@ -16,41 +16,42 @@
 
 package com.navercorp.pinpoint.profiler.interceptor.bci;
 
-import com.navercorp.pinpoint.profiler.instrument.interceptor.CodeBuilder;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+import org.junit.Test;
+
+import com.navercorp.pinpoint.profiler.interceptor.bci.CodeBuilder;
 
 /**
  * @author emeroad
  */
 public class CodeBuilderTest {
     @Test
-    public void testCodeBuilder() {
+    public void testCodeBuilder() throws Exception {
         CodeBuilder builder = new CodeBuilder();
         builder.begin();
         builder.format("1");
         builder.end();
-        Assertions.assertEquals("{1}", builder.toString());
+        Assert.assertEquals("{1}", builder.toString());
     }
 
     @Test
-    public void testFormat() {
+    public void testFormat() throws Exception {
         CodeBuilder builder = new CodeBuilder();
         builder.begin();
         builder.format("1");
         builder.format("2");
         builder.end();
-        Assertions.assertEquals("{12}", builder.toString());
+        Assert.assertEquals("{12}", builder.toString());
     }
 
     @Test
-    public void testFormatAppend() {
+    public void testFormatAppend() throws Exception {
         CodeBuilder builder = new CodeBuilder();
         builder.begin();
         builder.format("1");
         builder.append("2");
         builder.end();
-        Assertions.assertEquals("{12}", builder.toString());
+        Assert.assertEquals("{12}", builder.toString());
     }
 
 

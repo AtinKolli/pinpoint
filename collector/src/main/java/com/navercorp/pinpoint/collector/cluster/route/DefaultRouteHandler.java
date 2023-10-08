@@ -16,37 +16,31 @@
 
 package com.navercorp.pinpoint.collector.cluster.route;
 
-import com.navercorp.pinpoint.collector.cluster.ClusterPoint;
-import com.navercorp.pinpoint.collector.cluster.ClusterPointLocator;
-import com.navercorp.pinpoint.collector.cluster.GrpcAgentConnection;
-import com.navercorp.pinpoint.collector.cluster.route.filter.RouteFilter;
-import com.navercorp.pinpoint.io.ResponseMessage;
-import com.navercorp.pinpoint.thrift.dto.command.TCommandTransferResponse;
-import com.navercorp.pinpoint.thrift.dto.command.TRouteResult;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.thrift.TBase;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import com.navercorp.pinpoint.collector.cluster.ClusterPointLocator;
+import com.navercorp.pinpoint.collector.cluster.TargetClusterPoint;
+import com.navercorp.pinpoint.rpc.Future;
+import com.navercorp.pinpoint.rpc.ResponseMessage;
+import com.navercorp.pinpoint.thrift.io.TCommandTypeVersion;
 
 /**
  * @author koo.taejin
- * @author HyunGil Jeong
  */
 public class DefaultRouteHandler extends AbstractRouteHandler<RequestEvent> {
+
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final RouteFilterChain<RequestEvent> requestFilterChain;
     private final RouteFilterChain<ResponseEvent> responseFilterChain;
 
-    public DefaultRouteHandler(ClusterPointLocator<ClusterPoint<?>> targetClusterPointLocator,
-            RouteFilterChain<RequestEvent> requestFilterChain,
-            RouteFilterChain<ResponseEvent> responseFilterChain) {
+    public DefaultRouteHandler(ClusterPointLocator<TargetClusterPoint> targetClusterPointLocator) {
         super(targetClusterPointLocator);
 
-        this.requestFilterChain = requestFilterChain;
-        this.responseFilterChain = responseFilterChain;
+        this.requestFilterChain = new DefaultRouteFilterChain<RequestEvent>();
+        this.responseFilterChain = new DefaultRouteFilterChain<ResponseEvent>();
     }
 
     @Override
@@ -60,59 +54,41 @@ public class DefaultRouteHandler extends AbstractRouteHandler<RequestEvent> {
     }
 
     @Override
-    public TCommandTransferResponse onRoute(RequestEvent event) {
+    public RouteResult onRoute(RequestEvent event) {
         requestFilterChain.doEvent(event);
 
-        TCommandTransferResponse routeResult = onRoute0(event);
+        RouteResult routeResult = onRoute0(event);
 
         responseFilterChain.doEvent(new ResponseEvent(event, event.getRequestId(), routeResult));
 
         return routeResult;
     }
 
-    private TCommandTransferResponse onRoute0(RequestEvent event) {
-        TBase<?, ?> requestObject = event.getRequestObject();
+    private RouteResult onRoute0(RequestEvent event) {
+        TBase requestObject = event.getRequestObject();
         if (requestObject == null) {
-            return createResponse(TRouteResult.EMPTY_REQUEST);
+            return new RouteResult(RouteStatus.BAD_REQUEST);
         }
 
-        ClusterPoint<?> clusterPoint = findClusterPoint(event.getDeliveryCommand());
+        TargetClusterPoint clusterPoint = findClusterPoint(event.getDeliveryCommand());
         if (clusterPoint == null) {
-            return createResponse(TRouteResult.NOT_FOUND);
+            return new RouteResult(RouteStatus.NOT_FOUND);
         }
 
-        if (!clusterPoint.isSupportCommand(requestObject)) {
-            return createResponse(TRouteResult.NOT_SUPPORTED_REQUEST);
+        TCommandTypeVersion commandVersion = TCommandTypeVersion.getVersion(clusterPoint.gerVersion());
+        if (!commandVersion.isSupportCommand(requestObject)) {
+            return new RouteResult(RouteStatus.NOT_ACCEPTABLE);
         }
 
-        CompletableFuture<ResponseMessage> future;
-        if (clusterPoint instanceof GrpcAgentConnection) {
-            GrpcAgentConnection grpcAgentConnection = (GrpcAgentConnection) clusterPoint;
-            future = grpcAgentConnection.request(event.getRequestObject());
-        } else {
-            return createResponse(TRouteResult.NOT_ACCEPTABLE);
+        Future<ResponseMessage> future = clusterPoint.request(event.getDeliveryCommand().getPayload());
+        future.await();
+        ResponseMessage responseMessage = future.getResult();
+
+        if (responseMessage == null) {
+            return new RouteResult(RouteStatus.AGENT_TIMEOUT);
         }
 
-        try {
-            ResponseMessage responseMessage = future.get(3000, TimeUnit.MILLISECONDS);
-            if (responseMessage == null) {
-                return createResponse(TRouteResult.EMPTY_RESPONSE);
-            }
-
-            final byte[] responsePayload = responseMessage.getMessage();
-            if (ArrayUtils.isEmpty(responsePayload)) {
-                return createResponse(TRouteResult.EMPTY_RESPONSE, new byte[0]);
-            }
-
-            return createResponse(TRouteResult.OK, responsePayload);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return createResponse(TRouteResult.UNKNOWN, e.getMessage());
-        } catch (ExecutionException e) {
-            return createResponse(TRouteResult.UNKNOWN, e.getCause().getMessage());
-        } catch (TimeoutException e) {
-            return createResponse(TRouteResult.TIMEOUT);
-        }
+        return new RouteResult(RouteStatus.OK, responseMessage);
     }
 
 }

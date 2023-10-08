@@ -16,13 +16,10 @@
 
 package com.navercorp.pinpoint.rpc.server;
 
-import com.navercorp.pinpoint.rpc.cluster.ClusterOption;
-import com.navercorp.pinpoint.rpc.server.handler.ServerStateChangeEventHandler;
-import com.navercorp.pinpoint.rpc.stream.ServerStreamChannelMessageHandler;
-
 import org.jboss.netty.util.Timer;
 
-import java.util.List;
+import com.navercorp.pinpoint.rpc.server.handler.ChannelStateChangeEventHandler;
+import com.navercorp.pinpoint.rpc.stream.ServerStreamChannelMessageListener;
 
 /**
  * @author Taejin Koo
@@ -30,14 +27,13 @@ import java.util.List;
 public interface PinpointServerConfig {
 
     long getDefaultRequestTimeout();
-
+    
+    Timer getHealthCheckTimer();
     Timer getRequestManagerTimer();
 
     ServerMessageListener getMessageListener();
-    List<ServerStateChangeEventHandler> getStateChangeEventHandlers();
+    ChannelStateChangeEventHandler getStateChangeEventHandler();
 
-    ServerStreamChannelMessageHandler getServerStreamMessageHandler();
-
-    ClusterOption getClusterOption();
+    ServerStreamChannelMessageListener getStreamMessageListener();
 
 }

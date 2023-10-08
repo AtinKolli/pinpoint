@@ -16,22 +16,22 @@
 
 package com.navercorp.pinpoint.plugin.tomcat.interceptor;
 
-import com.navercorp.pinpoint.bootstrap.context.ServerMetaDataHolder;
+import org.apache.catalina.connector.Connector;
+
 import com.navercorp.pinpoint.bootstrap.context.TraceContext;
-import com.navercorp.pinpoint.bootstrap.interceptor.AroundInterceptor;
+import com.navercorp.pinpoint.bootstrap.interceptor.SimpleAroundInterceptor;
 import com.navercorp.pinpoint.bootstrap.logging.PLogger;
 import com.navercorp.pinpoint.bootstrap.logging.PLoggerFactory;
-import org.apache.catalina.connector.Connector;
 
 /**
  * @author emeroad
  */
-public class ConnectorInitializeInterceptor implements AroundInterceptor {
+public class ConnectorInitializeInterceptor implements SimpleAroundInterceptor {
 
-    private final PLogger logger = PLoggerFactory.getLogger(this.getClass());
+    private PLogger logger = PLoggerFactory.getLogger(this.getClass());
     private final boolean isDebug = logger.isDebugEnabled();
 
-    private final TraceContext traceContext;
+    private TraceContext traceContext;
     
     public ConnectorInitializeInterceptor(TraceContext traceContext) {
         this.traceContext = traceContext;
@@ -47,11 +47,8 @@ public class ConnectorInitializeInterceptor implements AroundInterceptor {
         if (isDebug) {
             logger.afterInterceptor(target, args, result, throwable);
         }
-        if (target instanceof Connector) {
-            final Connector connector = (Connector) target;
-            ServerMetaDataHolder holder = this.traceContext.getServerMetaDataHolder();
-            holder.addConnector(connector.getProtocol(), connector.getPort());
-            holder.notifyListeners();
-        }
+
+        Connector connector = (Connector)target;
+        this.traceContext.getServerMetaDataHolder().addConnector(connector.getProtocol(), connector.getPort());
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,86 +16,113 @@
 
 package com.navercorp.pinpoint.profiler.context;
 
+
 import com.navercorp.pinpoint.bootstrap.config.ProfilerConfig;
-import com.navercorp.pinpoint.bootstrap.context.MethodDescriptor;
-import com.navercorp.pinpoint.bootstrap.context.ParsingResult;
-import com.navercorp.pinpoint.bootstrap.context.ServerMetaDataHolder;
-import com.navercorp.pinpoint.bootstrap.context.Trace;
-import com.navercorp.pinpoint.bootstrap.context.TraceContext;
-import com.navercorp.pinpoint.bootstrap.context.TraceId;
-import com.navercorp.pinpoint.bootstrap.plugin.jdbc.JdbcContext;
-import com.navercorp.pinpoint.common.annotations.InterfaceAudience;
+import com.navercorp.pinpoint.bootstrap.context.*;
+import com.navercorp.pinpoint.bootstrap.interceptor.MethodDescriptor;
+import com.navercorp.pinpoint.bootstrap.sampler.Sampler;
+import com.navercorp.pinpoint.common.HistogramSchema;
+import com.navercorp.pinpoint.common.ServiceType;
+import com.navercorp.pinpoint.common.util.DefaultParsingResult;
+import com.navercorp.pinpoint.common.util.ParsingResult;
+import com.navercorp.pinpoint.common.util.SqlParser;
 import com.navercorp.pinpoint.profiler.AgentInformation;
-import com.navercorp.pinpoint.profiler.context.id.TraceIdFactory;
-import com.navercorp.pinpoint.profiler.metadata.ApiMetaDataService;
-import com.navercorp.pinpoint.profiler.metadata.SqlMetaDataService;
-import com.navercorp.pinpoint.profiler.metadata.StringMetaDataService;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.navercorp.pinpoint.profiler.context.storage.LogStorageFactory;
+import com.navercorp.pinpoint.profiler.context.storage.StorageFactory;
+import com.navercorp.pinpoint.profiler.metadata.LRUCache;
+import com.navercorp.pinpoint.profiler.metadata.Result;
+import com.navercorp.pinpoint.profiler.metadata.SimpleCache;
+import com.navercorp.pinpoint.profiler.modifier.db.DefaultDatabaseInfo;
+import com.navercorp.pinpoint.profiler.modifier.db.JDBCUrlParser;
+import com.navercorp.pinpoint.profiler.monitor.metric.ContextMetric;
+import com.navercorp.pinpoint.profiler.monitor.metric.MetricRegistry;
+import com.navercorp.pinpoint.profiler.sampler.TrueSampler;
+import com.navercorp.pinpoint.profiler.sender.EnhancedDataSender;
+import com.navercorp.pinpoint.profiler.util.RuntimeMXBeanUtils;
+import com.navercorp.pinpoint.thrift.dto.TApiMetaData;
+import com.navercorp.pinpoint.thrift.dto.TSqlMetaData;
+import com.navercorp.pinpoint.thrift.dto.TStringMetaData;
 
-import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author emeroad
- * @author HyunGil Jeong
- * @author Taejin Koo
+ * @author hyungil.jeong
  */
 public class DefaultTraceContext implements TraceContext {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+    private final boolean isDebug = logger.isDebugEnabled();
 
-    private final TraceIdFactory traceIdFactory;
     private final TraceFactory traceFactory;
 
-    private final AgentInformation agentInformation;
+    private final ActiveThreadCounter activeThreadCounter = new ActiveThreadCounter();
 
-    private final ApiMetaDataService apiMetaDataService;
-    private final StringMetaDataService stringMetaDataService;
-    private final SqlMetaDataService sqlMetaDataService;
+//    private GlobalCallTrace globalCallTrace = new GlobalCallTrace();
 
-    private final ProfilerConfig profilerConfig;
+    private AgentInformation agentInformation;
 
+    private EnhancedDataSender priorityDataSender;
+
+    private final MetricRegistry metricRegistry;
+
+    private final SimpleCache<String> sqlCache;
+    private final SqlParser sqlParser = new SqlParser();
+
+    private final SimpleCache<String> apiCache = new SimpleCache<String>();
+    private final SimpleCache<String> stringCache = new SimpleCache<String>();
+
+    private final JDBCUrlParser jdbcUrlParser = new JDBCUrlParser();
+
+    private ProfilerConfig profilerConfig;
+    
     private final ServerMetaDataHolder serverMetaDataHolder;
+    
+    private final AtomicInteger asyncId = new AtomicInteger();
+    
+    // for test
+    public DefaultTraceContext(final AgentInformation agentInformation) {
+        this(LRUCache.DEFAULT_CACHE_SIZE, agentInformation, new LogStorageFactory(), new TrueSampler(), new DefaultServerMetaDataHolder(RuntimeMXBeanUtils.getVmArgs()));
+    }
 
-    private final JdbcContext jdbcContext;
+    public DefaultTraceContext(final int sqlCacheSize, final AgentInformation agentInformation, StorageFactory storageFactory, Sampler sampler, ServerMetaDataHolder serverMetaDataHolder) {
+        if (agentInformation == null) {
+            throw new NullPointerException("agentInformation must not be null");
+        }
+        if (storageFactory == null) {
+            throw new NullPointerException("storageFactory must not be null");
+        }
+        if (sampler == null) {
+            throw new NullPointerException("sampler must not be null");
+        }
+        this.agentInformation = agentInformation;
+        this.sqlCache = new SimpleCache<String>(sqlCacheSize);
+        this.metricRegistry = new MetricRegistry(this.agentInformation.getServerType());
 
-    public DefaultTraceContext(final ProfilerConfig profilerConfig,
-                               final AgentInformation agentInformation,
-                               final TraceIdFactory traceIdFactory,
-                               final TraceFactory traceFactory,
-                               final ServerMetaDataHolder serverMetaDataHolder,
-                               final ApiMetaDataService apiMetaDataService,
-                               final StringMetaDataService stringMetaDataService,
-                               final SqlMetaDataService sqlMetaDataService,
-                               final JdbcContext jdbcContext
-    ) {
-        this.profilerConfig = Objects.requireNonNull(profilerConfig, "profilerConfig");
-        this.agentInformation = Objects.requireNonNull(agentInformation, "agentInformation");
-        this.serverMetaDataHolder = Objects.requireNonNull(serverMetaDataHolder, "serverMetaDataHolder");
-
-        this.traceIdFactory = Objects.requireNonNull(traceIdFactory, "traceIdFactory");
-        this.traceFactory = Objects.requireNonNull(traceFactory, "traceFactory");
-
-        this.jdbcContext = Objects.requireNonNull(jdbcContext, "jdbcContext");
-
-        this.apiMetaDataService = Objects.requireNonNull(apiMetaDataService, "apiMetaDataService");
-        this.stringMetaDataService = Objects.requireNonNull(stringMetaDataService, "stringMetaDataService");
-        this.sqlMetaDataService = Objects.requireNonNull(sqlMetaDataService, "sqlMetaDataService");
+        this.traceFactory = new ThreadLocalTraceFactory(this, metricRegistry, storageFactory, sampler);
+        
+        this.serverMetaDataHolder = serverMetaDataHolder;
     }
 
     /**
      * Return trace only if current transaction can be sampled.
-     *
      * @return
      */
     public Trace currentTraceObject() {
         return traceFactory.currentTraceObject();
     }
 
+    public Trace currentRpcTraceObject() {
+        return traceFactory.currentTraceObject();
+    }
+
     /**
      * Return trace without sampling check.
-     *
      * @return
      */
     @Override
@@ -105,86 +132,53 @@ public class DefaultTraceContext implements TraceContext {
 
     @Override
     public Trace disableSampling() {
-        // return null; is bug. #93
+        // return null; is bug.  #93
         return traceFactory.disableSampling();
     }
 
+    public void setProfilerConfig(final ProfilerConfig profilerConfig) {
+        if (profilerConfig == null) {
+            throw new NullPointerException("profilerConfig must not be null");
+        }
+        this.profilerConfig = profilerConfig;
+    }
 
     @Override
     public ProfilerConfig getProfilerConfig() {
         return profilerConfig;
     }
 
-    @Override
-    public Trace continueTraceObject(final TraceId traceId) {
-        return traceFactory.continueTraceObject(traceId);
-    }
-
-
-    @Override
-    public Trace continueTraceObject(Trace trace) {
-        return traceFactory.continueTraceObject(trace);
+    // Will be invoked when current transaction is picked as sampling target at remote.
+    public Trace continueTraceObject(final TraceId traceID) {
+        return traceFactory.continueTraceObject(traceID);
     }
 
     @Override
+    public Trace continueAsyncTraceObject(TraceId traceId, int asyncId, long startTime) {
+        return traceFactory.continueAsyncTraceObject(traceId, asyncId, startTime);
+    }
+    
     public Trace newTraceObject() {
         return traceFactory.newTraceObject();
     }
 
-    @Override
-    public Trace newTraceObject(String urlPath) {
-        return traceFactory.newTraceObject(urlPath);
+    public void attachTraceObject(Trace trace) {
+        this.traceFactory.attachTraceObject(trace);
     }
-
-    @InterfaceAudience.LimitedPrivate("vert.x")
+    
     @Override
-    public Trace newAsyncTraceObject() {
-        return traceFactory.newAsyncTraceObject();
-    }
-
-    @Override
-    public Trace newAsyncTraceObject(String urlPath) {
-        return traceFactory.newAsyncTraceObject(urlPath);
-    }
-
-    @InterfaceAudience.LimitedPrivate("vert.x")
-    @Override
-    public Trace continueAsyncTraceObject(final TraceId traceId) {
-        return traceFactory.continueAsyncTraceObject(traceId);
+    public void detachTraceObject() {
+        this.traceFactory.detachTraceObject();
     }
 
 
-
-
-    @Override
-    public Trace removeTraceObject() {
-        return removeTraceObject(true);
+    //@Override
+    public ActiveThreadCounter getActiveThreadCounter() {
+        return activeThreadCounter;
     }
 
-    @Override
-    public Trace removeTraceObject(boolean closeUnsampledTrace) {
-        final Trace trace = traceFactory.removeTraceObject();
-        if (closeUnsampledTrace) {
-            return closeUnsampledTrace(trace);
-        } else {
-            return trace;
-        }
-    }
-
-    private Trace closeUnsampledTrace(Trace trace) {
-        if (trace == null) {
-            return null;
-        }
-        // work around : unsampled trace must be closed.
-        if (!trace.canSampled()) {
-            if (!trace.isClosed()) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("closeUnsampledTrace");
-                }
-                trace.close();
-            }
-        }
-        return trace;
+    public AgentInformation getAgentInformation() {
+        return agentInformation;
     }
 
     @Override
@@ -212,29 +206,144 @@ public class DefaultTraceContext implements TraceContext {
         return this.agentInformation.getServerType().getDesc();
     }
 
+
     @Override
     public int cacheApi(final MethodDescriptor methodDescriptor) {
-        return this.apiMetaDataService.cacheApi(methodDescriptor);
+        final String fullName = methodDescriptor.getFullName();
+        final Result result = this.apiCache.put(fullName);
+        
+        methodDescriptor.setApiId(result.getId());
+
+        if (result.isNewValue()) {
+            final TApiMetaData apiMetadata = new TApiMetaData();
+            apiMetadata.setAgentId(getAgentId());
+            apiMetadata.setAgentStartTime(getAgentStartTime());
+
+            apiMetadata.setApiId(result.getId());
+            apiMetadata.setApiInfo(methodDescriptor.getApiDescriptor());
+            apiMetadata.setLine(methodDescriptor.getLineNumber());
+            apiMetadata.setType(methodDescriptor.getType());
+
+            this.priorityDataSender.request(apiMetadata);
+        } 
+        
+        return result.getId();
     }
 
     @Override
     public int cacheString(final String value) {
-        return this.stringMetaDataService.cacheString(value);
+        if (value == null) {
+            return 0;
+        }
+        final Result result = this.stringCache.put(value);
+        if (result.isNewValue()) {
+            final TStringMetaData stringMetaData = new TStringMetaData();
+            stringMetaData.setAgentId(getAgentId());
+            stringMetaData.setAgentStartTime(getAgentStartTime());
+
+            stringMetaData.setStringId(result.getId());
+            stringMetaData.setStringValue(value);
+            this.priorityDataSender.request(stringMetaData);
+        }
+        return result.getId();
     }
 
     @Override
-    public TraceId createTraceId(final String transactionId, final long parentSpanId, final long spanId, final short flags) {
-        Objects.requireNonNull(transactionId, "transactionId");
+    public TraceId createTraceId(final String transactionId, final long parentSpanID, final long spanID, final short flags) {
+        if (transactionId == null) {
+            throw new NullPointerException("transactionId must not be null");
+        }
         // TODO Should handle exception when parsing failed.
-        return traceIdFactory.continueTraceId(transactionId, parentSpanId, spanId, flags);
+        return DefaultTraceId.parse(transactionId, parentSpanID, spanID, flags);
     }
+
 
     @Override
     public ParsingResult parseSql(final String sql) {
-        return this.sqlMetaDataService.wrapSqlResult(sql);
+
+        final DefaultParsingResult parsingResult = this.sqlParser.normalizedSql(sql);
+        return parsingResult;
+    }
+
+    @Override
+    public boolean cacheSql(ParsingResult parsingResult) {
+        if (parsingResult == null) {
+            return false;
+        }
+        if (parsingResult.getId() != ParsingResult.ID_NOT_EXIST) {
+            // already cached
+            return false;
+        }
+        final String normalizedSql = parsingResult.getSql();
+
+        final Result cachingResult = this.sqlCache.put(normalizedSql);
+        if (cachingResult.isNewValue()) {
+            if (isDebug) {
+                // TODO logging hit ratio could help debugging
+                logger.debug("NewSQLParsingResult:{}", parsingResult);
+            }
+
+            // isNewValue means that the value is newly cached.
+            // So the sql could be new one. We have to send sql metadata to collector.
+            final TSqlMetaData sqlMetaData = new TSqlMetaData();
+            sqlMetaData.setAgentId(getAgentId());
+            sqlMetaData.setAgentStartTime(getAgentStartTime());
+
+            sqlMetaData.setSqlId(cachingResult.getId());
+            sqlMetaData.setSql(normalizedSql);
+
+            this.priorityDataSender.request(sqlMetaData);
+        }
+        return parsingResult.setId(cachingResult.getId());
+    }
+
+    @Override
+     public DatabaseInfo parseJdbcUrl(final String url) {
+        return this.jdbcUrlParser.parse(url);
+    }
+
+    @Override
+    public DatabaseInfo createDatabaseInfo(ServiceType type, ServiceType executeQueryType, String url, int port, String databaseId) {
+        List<String> host = new ArrayList<String>();
+        host.add(url + ":" + port);
+        DatabaseInfo databaseInfo = new DefaultDatabaseInfo(type, executeQueryType, url, url, host, databaseId);
+        return databaseInfo;
     }
 
 
+
+    public void setPriorityDataSender(final EnhancedDataSender priorityDataSender) {
+        this.priorityDataSender = priorityDataSender;
+    }
+
+    @Override
+    public Metric getRpcMetric(ServiceType serviceType) {
+        if (serviceType == null) {
+            throw new NullPointerException("serviceType must not be null");
+        }
+
+        return this.metricRegistry.getRpcMetric(serviceType);
+    }
+
+
+    public void recordContextMetricIsError() {
+        recordContextMetric(HistogramSchema.ERROR_SLOT_TIME);
+    }
+
+    public void recordContextMetric(int elapsedTime) {
+        final ContextMetric contextMetric = this.metricRegistry.getResponseMetric();
+        contextMetric.addResponseTime(elapsedTime);
+    }
+
+    public void recordAcceptResponseTime(String parentApplicationName, short parentApplicationType, int elapsedTime) {
+        final ContextMetric contextMetric = this.metricRegistry.getResponseMetric();
+        contextMetric.addAcceptHistogram(parentApplicationName, parentApplicationType, elapsedTime);
+    }
+
+    public void recordUserAcceptResponseTime(int elapsedTime) {
+        final ContextMetric contextMetric = this.metricRegistry.getResponseMetric();
+        contextMetric.addUserAcceptHistogram(elapsedTime);
+    }
 
     @Override
     public ServerMetaDataHolder getServerMetaDataHolder() {
@@ -243,8 +352,8 @@ public class DefaultTraceContext implements TraceContext {
 
 
     @Override
-    public JdbcContext getJdbcContext() {
-        return jdbcContext;
+    public int getAsyncId() {
+        final int id = asyncId.incrementAndGet();
+        return id == -1 ? asyncId.incrementAndGet() : id;
     }
-
 }

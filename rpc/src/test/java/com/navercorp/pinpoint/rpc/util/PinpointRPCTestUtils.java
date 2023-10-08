@@ -1,11 +1,11 @@
 /*
- * Copyright 2019 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,36 +16,80 @@
 
 package com.navercorp.pinpoint.rpc.util;
 
-import com.navercorp.pinpoint.io.ResponseMessage;
-import com.navercorp.pinpoint.rpc.LoggingStateChangeEventListener;
-import com.navercorp.pinpoint.rpc.MessageListener;
-import com.navercorp.pinpoint.rpc.PinpointSocket;
-import com.navercorp.pinpoint.rpc.PinpointSocketException;
-import com.navercorp.pinpoint.rpc.client.DefaultPinpointClientFactory;
-import com.navercorp.pinpoint.rpc.client.PinpointClient;
-import com.navercorp.pinpoint.rpc.packet.HandshakePropertyType;
-import com.navercorp.pinpoint.rpc.packet.RequestPacket;
-import com.navercorp.pinpoint.rpc.packet.SendPacket;
-import com.navercorp.pinpoint.rpc.server.PinpointServerAcceptor;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+
+import org.jboss.netty.channel.Channel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.navercorp.pinpoint.rpc.Future;
+import com.navercorp.pinpoint.rpc.ResponseMessage;
+import com.navercorp.pinpoint.rpc.client.MessageListener;
+import com.navercorp.pinpoint.rpc.client.PinpointSocket;
+import com.navercorp.pinpoint.rpc.client.PinpointSocketFactory;
+import com.navercorp.pinpoint.rpc.packet.HandshakeResponseCode;
+import com.navercorp.pinpoint.rpc.packet.HandshakeResponseType;
+import com.navercorp.pinpoint.rpc.packet.RequestPacket;
+import com.navercorp.pinpoint.rpc.packet.ResponsePacket;
+import com.navercorp.pinpoint.rpc.packet.SendPacket;
+import com.navercorp.pinpoint.rpc.server.AgentHandshakePropertyType;
+import com.navercorp.pinpoint.rpc.server.PinpointServerAcceptor;
+import com.navercorp.pinpoint.rpc.server.PinpointServer;
+import com.navercorp.pinpoint.rpc.server.ServerMessageListener;
 
 public final class PinpointRPCTestUtils {
     
-    private static final Logger logger = LogManager.getLogger(PinpointRPCTestUtils.class);
+    private static final Logger logger = LoggerFactory.getLogger(PinpointRPCTestUtils.class);
 
     private PinpointRPCTestUtils() {
     }
+    
 
+    public static int findAvailablePort() throws IOException {
+        return findAvailablePort(21111);
+    }
+
+    public static int findAvailablePort(int defaultPort) throws IOException {
+        int bindPort = defaultPort;
+
+        ServerSocket serverSocket = null;
+        while (0xFFFF >= bindPort && serverSocket == null) {
+            try {
+                serverSocket = new ServerSocket(bindPort);
+            } catch (IOException ex) {
+                bindPort++;
+            }
+        }
+        
+        if (serverSocket != null) {
+            serverSocket.close();
+            return bindPort;
+        } 
+        
+        throw new IOException("can't find avaiable port.");
+    }
+
+    public static PinpointServerAcceptor createPinpointServerFactory(int bindPort) {
+        return createPinpointServerFactory(bindPort, null);
+    }
+    
+    public static PinpointServerAcceptor createPinpointServerFactory(int bindPort, ServerMessageListener messageListener) {
+        PinpointServerAcceptor serverAcceptor = new PinpointServerAcceptor();
+        serverAcceptor.bind("127.0.0.1", bindPort);
+        
+        if (messageListener != null) {
+            serverAcceptor.setMessageListener(messageListener);
+        }
+
+        return serverAcceptor;
+    }
+    
     public static void close(PinpointServerAcceptor serverAcceptor, PinpointServerAcceptor... serverAcceptors) {
         if (serverAcceptor != null) {
             serverAcceptor.close();
@@ -59,56 +103,55 @@ public final class PinpointRPCTestUtils {
             }
         }
     }
-
-    public static DefaultPinpointClientFactory createClientFactory(Map<String, Object> param, MessageListener messageListener) {
-        DefaultPinpointClientFactory clientFactory = new DefaultPinpointClientFactory();
-        clientFactory.setConnectTimeout(100);
-        clientFactory.setProperties(param);
-        clientFactory.addStateChangeEventListener(LoggingStateChangeEventListener.INSTANCE);
+    
+    public static PinpointSocketFactory createSocketFactory(Map param) {
+        return createSocketFactory(param, null);
+    }
+    
+    public static PinpointSocketFactory createSocketFactory(Map param, MessageListener messageListener) {
+        PinpointSocketFactory socketFactory = new PinpointSocketFactory();
+        socketFactory.setProperties(param);
 
         if (messageListener != null) {
-            clientFactory.setMessageListener(messageListener);
+            socketFactory.setMessageListener(messageListener);
         }
         
-        return clientFactory;
+        return socketFactory;
     }
 
-    public static byte[] request(PinpointSocket writableServer, byte[] message) {
-        CompletableFuture<ResponseMessage> future = writableServer.request(message);
-
-        ResponseMessage responseMessage = getResponseMessage(future);
-        return responseMessage.getMessage();
+    public static byte[] request(PinpointServer writableServer, byte[] message) {
+        Future<ResponseMessage> future = writableServer.request(message);
+        future.await();
+        return future.getResult().getMessage();
     }
 
-    public static byte[] request(PinpointClient client, byte[] message) {
-        CompletableFuture<ResponseMessage> future = client.request(message);
-
-        ResponseMessage responseMessage = getResponseMessage(future);
-        return responseMessage.getMessage();
+    public static byte[] request(PinpointSocket pinpointSocket, byte[] message) {
+        Future<ResponseMessage> future = pinpointSocket.request(message);
+        future.await();
+        return future.getResult().getMessage();
     }
 
-    private static ResponseMessage getResponseMessage(CompletableFuture<ResponseMessage> future) {
-        try {
-            return future.get(3000, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException | TimeoutException e) {
-            throw new RuntimeException(e);
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof PinpointSocketException) {
-                PinpointSocketException pse = (PinpointSocketException) cause;
-                throw pse;
+    public static void close(PinpointSocket socket, PinpointSocket... sockets) {
+        if (socket != null) {
+            socket.close();
+        }
+        
+        if (sockets != null) {
+            for (PinpointSocket eachSocket : sockets) {
+                if (eachSocket != null) {
+                    eachSocket.close();
+                }
             }
-            throw new RuntimeException(e);
         }
     }
-
-    public static void close(PinpointClient client, PinpointClient... clients) {
-        if (client != null) {
-            client.close();
+    
+    public static void close(Socket socket, Socket... sockets) throws IOException {
+        if (socket != null) {
+            socket.close();
         }
         
-        if (clients != null) {
-            for (PinpointClient eachSocket : clients) {
+        if (sockets != null) {
+            for (Socket eachSocket : sockets) {
                 if (eachSocket != null) {
                     eachSocket.close();
                 }
@@ -116,26 +159,60 @@ public final class PinpointRPCTestUtils {
         }
     }
 
-    public static Map<String, Object> getParams() {
-        Map<String, Object> properties = new HashMap<>();
-        properties.put(HandshakePropertyType.AGENT_ID.getName(), "agent");
-        properties.put(HandshakePropertyType.APPLICATION_NAME.getName(), "application");
-        properties.put(HandshakePropertyType.HOSTNAME.getName(), "hostname");
-        properties.put(HandshakePropertyType.IP.getName(), "ip");
-        properties.put(HandshakePropertyType.PID.getName(), 1111);
-        properties.put(HandshakePropertyType.SERVICE_TYPE.getName(), 10);
-        properties.put(HandshakePropertyType.START_TIMESTAMP.getName(), System.currentTimeMillis());
-        properties.put(HandshakePropertyType.VERSION.getName(), "1.0");
+    
+    public static EchoServerListener createEchoServerListener() {
+        return new EchoServerListener();
+    }
+
+    public static EchoClientListener createEchoClientListener() {
+        return new EchoClientListener();
+    }
+
+    public static Map getParams() {
+        Map properties = new HashMap();
+        properties.put(AgentHandshakePropertyType.AGENT_ID.getName(), "agent");
+        properties.put(AgentHandshakePropertyType.APPLICATION_NAME.getName(), "application");
+        properties.put(AgentHandshakePropertyType.HOSTNAME.getName(), "hostname");
+        properties.put(AgentHandshakePropertyType.IP.getName(), "ip");
+        properties.put(AgentHandshakePropertyType.PID.getName(), 1111);
+        properties.put(AgentHandshakePropertyType.SERVICE_TYPE.getName(), 10);
+        properties.put(AgentHandshakePropertyType.START_TIMESTAMP.getName(), System.currentTimeMillis());
+        properties.put(AgentHandshakePropertyType.VERSION.getName(), "1.0");
 
         return properties;
     }
 
-    public static class EchoClientListener implements MessageListener {
-        private final List<SendPacket> sendPacketRepository = new ArrayList<>();
-        private final List<RequestPacket> requestPacketRepository = new ArrayList<>();
+    public static class EchoServerListener implements ServerMessageListener {
+        private final List<SendPacket> sendPacketRepository = new ArrayList<SendPacket>();
+        private final List<RequestPacket> requestPacketRepository = new ArrayList<RequestPacket>();
+        
+        @Override
+        public void handleSend(SendPacket sendPacket, PinpointServer pinpointServer) {
+            sendPacketRepository.add(sendPacket);
+        }
 
         @Override
-        public void handleSend(SendPacket sendPacket, PinpointSocket pinpointSocket) {
+        public void handleRequest(RequestPacket requestPacket, PinpointServer pinpointServer) {
+            requestPacketRepository.add(requestPacket);
+
+            logger.info("handlerRequest {}", requestPacket);
+            
+            pinpointServer.response(requestPacket, requestPacket.getPayload());
+        }
+
+        @Override
+        public HandshakeResponseCode handleHandshake(Map properties) {
+            logger.info("handle Handshake {}", properties);
+            return HandshakeResponseType.Success.DUPLEX_COMMUNICATION;
+        }
+    }
+    
+    public static class EchoClientListener implements MessageListener {
+        private final List<SendPacket> sendPacketRepository = new ArrayList<SendPacket>();
+        private final List<RequestPacket> requestPacketRepository = new ArrayList<RequestPacket>();
+
+        @Override
+        public void handleSend(SendPacket sendPacket, Channel channel) {
             sendPacketRepository.add(sendPacket);
 
             byte[] payload = sendPacket.getPayload();
@@ -143,13 +220,13 @@ public final class PinpointRPCTestUtils {
         }
 
         @Override
-        public void handleRequest(RequestPacket requestPacket, PinpointSocket pinpointSocket) {
+        public void handleRequest(RequestPacket requestPacket, Channel channel) {
             requestPacketRepository.add(requestPacket);
 
             byte[] payload = requestPacket.getPayload();
             logger.debug(new String(payload));
 
-            pinpointSocket.response(requestPacket.getRequestId(), payload);
+            channel.write(new ResponsePacket(requestPacket.getRequestId(), requestPacket.getPayload()));
         }
 
         public List<SendPacket> getSendPacketRepository() {

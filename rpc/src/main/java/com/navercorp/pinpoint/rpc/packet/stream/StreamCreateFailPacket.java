@@ -28,14 +28,11 @@ public class StreamCreateFailPacket extends BasicStreamPacket {
 
     private final static short PACKET_TYPE = PacketType.APPLICATION_STREAM_CREATE_FAIL;
 
-    private final StreamCode code;
+    private final short code;
 
     public StreamCreateFailPacket(int streamChannelId, short code) {
-        this(streamChannelId, StreamCode.getCode(code));
-    }
-
-    public StreamCreateFailPacket(int streamChannelId, StreamCode code) {
         super(streamChannelId);
+
         this.code = code;
     }
 
@@ -49,7 +46,7 @@ public class StreamCreateFailPacket extends BasicStreamPacket {
         ChannelBuffer header = ChannelBuffers.buffer(2 + 4 + 2);
         header.writeShort(getPacketType());
         header.writeInt(getStreamChannelId());
-        header.writeShort(code.value());
+        header.writeShort(code);
 
         return header;
     }
@@ -69,7 +66,7 @@ public class StreamCreateFailPacket extends BasicStreamPacket {
         return packet;
     }
 
-    public StreamCode getCode() {
+    public short getCode() {
         return code;
     }
 

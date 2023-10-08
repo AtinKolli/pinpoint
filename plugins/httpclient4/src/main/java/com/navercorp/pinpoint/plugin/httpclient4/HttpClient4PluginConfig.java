@@ -16,66 +16,110 @@
 package com.navercorp.pinpoint.plugin.httpclient4;
 
 import com.navercorp.pinpoint.bootstrap.config.DumpType;
-import com.navercorp.pinpoint.bootstrap.config.HttpDumpConfig;
 import com.navercorp.pinpoint.bootstrap.config.ProfilerConfig;
 
 /**
+ * 
  * @author jaehong.kim
+ *
  */
 public class HttpClient4PluginConfig {
 
-    private boolean enable = true;
-    private boolean param = true;
-    private boolean statusCode = true;
-    private boolean io;
-    private HttpDumpConfig httpDumpConfig;
+    /**
+     * apache http client 4
+     */
+    private boolean apacheHttpClient4Profile = true;
+    private boolean apacheHttpClient4ProfileCookie = false;
+    private DumpType apacheHttpClient4ProfileCookieDumpType = DumpType.EXCEPTION;
+    private int apacheHttpClient4ProfileCookieSamplingRate = 1;
+    private boolean apacheHttpClient4ProfileEntity = false;
+    private DumpType apacheHttpClient4ProfileEntityDumpType = DumpType.EXCEPTION;
+    private int apacheHttpClient4ProfileEntitySamplingRate = 1;
+    private boolean apacheHttpClient4ProfileStatusCode = true;
+
+    /**
+     * apache nio http client
+     */
+    private boolean apacheNIOHttpClient4Profile = true;
 
     public HttpClient4PluginConfig(ProfilerConfig src) {
-        this.enable = src.readBoolean("profiler.apache.httpclient4.enable", true);
-        this.param = src.readBoolean("profiler.apache.httpclient4.param", true);
+        /**
+         * apache http client 4
+         */
+        this.apacheHttpClient4Profile = src.readBoolean("profiler.apache.httpclient4", true);
+        this.apacheHttpClient4ProfileCookie = src.readBoolean("profiler.apache.httpclient4.cookie", false);
+        this.apacheHttpClient4ProfileCookieDumpType = src.readDumpType("profiler.apache.httpclient4.cookie.dumptype", DumpType.EXCEPTION);
+        this.apacheHttpClient4ProfileCookieSamplingRate = src.readInt("profiler.apache.httpclient4.cookie.sampling.rate", 1);
 
-        boolean cookie = src.readBoolean("profiler.apache.httpclient4.cookie", false);
-        DumpType cookieDumpType = src.readDumpType("profiler.apache.httpclient4.cookie.dumptype", DumpType.EXCEPTION);
-        int cookieSamplingRate = src.readInt("profiler.apache.httpclient4.cookie.sampling.rate", 1);
-        int cookieDumpSize = src.readInt("profiler.apache.httpclient4.cookie.dumpsize", 1024);
-        boolean entity = src.readBoolean("profiler.apache.httpclient4.entity", false);
-        DumpType entityDumpType = src.readDumpType("profiler.apache.httpclient4.entity.dumptype", DumpType.EXCEPTION);
-        int entitySamplingRate = src.readInt("profiler.apache.httpclient4.entity.sampling.rate", 1);
-        int entityDumpSize = src.readInt("profiler.apache.httpclient4.entity.dumpsize", 1024);
-        this.httpDumpConfig = HttpDumpConfig.get(cookie, cookieDumpType, cookieSamplingRate, cookieDumpSize, entity, entityDumpType, entitySamplingRate, entityDumpSize);
+        this.apacheHttpClient4ProfileEntity = src.readBoolean("profiler.apache.httpclient4.entity", false);
+        this.apacheHttpClient4ProfileEntityDumpType = src.readDumpType("profiler.apache.httpclient4.entity.dumptype", DumpType.EXCEPTION);
+        this.apacheHttpClient4ProfileEntitySamplingRate = src.readInt("profiler.apache.httpclient4.entity.sampling.rate", 1);
 
-        this.statusCode = src.readBoolean("profiler.apache.httpclient4.entity.statuscode", true);
-        this.io = src.readBoolean("profiler.apache.httpclient4.io", true);
+        this.apacheHttpClient4ProfileStatusCode = src.readBoolean("profiler.apache.httpclient4.entity.statuscode", true);
+        /**
+         * apache nio http client
+         */
+        this.apacheNIOHttpClient4Profile = src.readBoolean("profiler.apache.nio.httpclient4", true);
     }
 
-    public boolean isEnable() {
-        return enable;
+    public boolean isApacheHttpClient4Profile() {
+        return apacheHttpClient4Profile;
     }
 
-    public boolean isParam() {
-        return param;
+    public boolean isApacheHttpClient4ProfileCookie() {
+        return apacheHttpClient4ProfileCookie;
     }
 
-    public boolean isStatusCode() {
-        return statusCode;
+    public DumpType getApacheHttpClient4ProfileCookieDumpType() {
+        return apacheHttpClient4ProfileCookieDumpType;
     }
 
-    public boolean isIo() {
-        return io;
+    public int getApacheHttpClient4ProfileCookieSamplingRate() {
+        return apacheHttpClient4ProfileCookieSamplingRate;
     }
 
-    public HttpDumpConfig getHttpDumpConfig() {
-        return httpDumpConfig;
+    public boolean isApacheHttpClient4ProfileEntity() {
+        return apacheHttpClient4ProfileEntity;
+    }
+
+    public DumpType getApacheHttpClient4ProfileEntityDumpType() {
+        return apacheHttpClient4ProfileEntityDumpType;
+    }
+
+    public int getApacheHttpClient4ProfileEntitySamplingRate() {
+        return apacheHttpClient4ProfileEntitySamplingRate;
+    }
+
+    public boolean isApacheHttpClient4ProfileStatusCode() {
+        return apacheHttpClient4ProfileStatusCode;
+    }
+
+    public boolean isApacheNIOHttpClient4Profile() {
+        return apacheNIOHttpClient4Profile;
     }
 
     @Override
     public String toString() {
-        return "HttpClient4PluginConfig{" +
-                "enable=" + enable +
-                ", param=" + param +
-                ", statusCode=" + statusCode +
-                ", io=" + io +
-                ", httpDumpConfig=" + httpDumpConfig +
-                '}';
+        StringBuilder builder = new StringBuilder();
+        builder.append("{apacheHttpClient4Profile=");
+        builder.append(apacheHttpClient4Profile);
+        builder.append(", apacheHttpClient4ProfileCookie=");
+        builder.append(apacheHttpClient4ProfileCookie);
+        builder.append(", apacheHttpClient4ProfileCookieDumpType=");
+        builder.append(apacheHttpClient4ProfileCookieDumpType);
+        builder.append(", apacheHttpClient4ProfileCookieSamplingRate=");
+        builder.append(apacheHttpClient4ProfileCookieSamplingRate);
+        builder.append(", apacheHttpClient4ProfileEntity=");
+        builder.append(apacheHttpClient4ProfileEntity);
+        builder.append(", apacheHttpClient4ProfileEntityDumpType=");
+        builder.append(apacheHttpClient4ProfileEntityDumpType);
+        builder.append(", apacheHttpClient4ProfileEntitySamplingRate=");
+        builder.append(apacheHttpClient4ProfileEntitySamplingRate);
+        builder.append(", apacheHttpClient4ProfileStatusCode=");
+        builder.append(apacheHttpClient4ProfileStatusCode);
+        builder.append(", apacheNIOHttpClient4Profile=");
+        builder.append(apacheNIOHttpClient4Profile);
+        builder.append("}");
+        return builder.toString();
     }
 }

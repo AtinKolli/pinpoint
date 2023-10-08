@@ -1,8 +1,0 @@
-spring:
-  main:
-    allow-bean-definition-overriding: true
-  profiles:
-    active: release
-
-server:
-  port: 8090

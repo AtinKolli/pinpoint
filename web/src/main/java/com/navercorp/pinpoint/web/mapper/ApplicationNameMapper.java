@@ -16,20 +16,21 @@
 
 package com.navercorp.pinpoint.web.mapper;
 
-import com.navercorp.pinpoint.common.hbase.RowMapper;
-import com.navercorp.pinpoint.common.hbase.util.CellUtils;
-import com.navercorp.pinpoint.web.component.ApplicationFactory;
-import com.navercorp.pinpoint.web.vo.Application;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.client.Result;
-import org.springframework.stereotype.Component;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
+
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.hadoop.hbase.RowMapper;
+import org.springframework.stereotype.Component;
+
+import com.navercorp.pinpoint.common.service.ServiceTypeRegistryService;
+import com.navercorp.pinpoint.web.vo.Application;
 
 /**
  *
@@ -37,30 +38,26 @@ import java.util.Set;
 @Component
 public class ApplicationNameMapper implements RowMapper<List<Application>> {
 
-    private final ApplicationFactory applicationFactory;
-
-    public ApplicationNameMapper(ApplicationFactory applicationFactory) {
-        this.applicationFactory = Objects.requireNonNull(applicationFactory, "applicationFactory");
-    }
+    @Autowired
+    private ServiceTypeRegistryService registry;
 
     @Override
     public List<Application> mapRow(Result result, int rowNum) throws Exception {
         if (result.isEmpty()) {
             return Collections.emptyList();
         }
-        Set<Short> uniqueTypeCodes = new HashSet<>();
-        String applicationName = CellUtils.rowToString(result);
+        Set<Short> uniqueTypeCodes = new HashSet<Short>();
+        String applicationName = Bytes.toString(result.getRow());
         
-        Cell[] rawCells = result.rawCells();
-        for (Cell cell : rawCells) {
-            short serviceTypeCode = CellUtils.valueToShort(cell);
+        List<KeyValue> list = result.list();
+        for(KeyValue value :list) {
+            short serviceTypeCode = Bytes.toShort(value.getValue());
             uniqueTypeCodes.add(serviceTypeCode);
         }
-        List<Application> applicationList = new ArrayList<>();
+        List<Application> applications = new ArrayList<Application>();
         for (short serviceTypeCode : uniqueTypeCodes) {
-            final Application application = applicationFactory.createApplication(applicationName, serviceTypeCode);
-            applicationList.add(application);
+            applications.add(new Application(applicationName, registry.findServiceType(serviceTypeCode)));
         }
-        return applicationList;
+        return applications;
     }
 }

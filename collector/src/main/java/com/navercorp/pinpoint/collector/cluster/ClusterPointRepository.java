@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,94 +16,45 @@
 
 package com.navercorp.pinpoint.collector.cluster;
 
-import com.navercorp.pinpoint.collector.receiver.grpc.PinpointGrpcServer;
-import com.navercorp.pinpoint.common.server.cluster.ClusterKey;
-import com.navercorp.pinpoint.rpc.common.SocketStateCode;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-public class ClusterPointRepository<T extends ClusterPoint<?>> implements ClusterPointLocator<T> {
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+public class ClusterPointRepository<T extends ClusterPoint> implements ClusterPointLocator<T> {
 
-    @GuardedBy("this")
-    private final Map<ClusterKey, Set<T>> clusterPointRepository = new HashMap<>();
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    public boolean addAndIsKeyCreated(T clusterPoint) {
-        ClusterKey destClusterKey = clusterPoint.getDestClusterKey();
-        synchronized (this) {
-            final Set<T> clusterPointSet = clusterPointRepository.get(destClusterKey);
-            if (clusterPointSet != null) {
-                clusterPointSet.add(clusterPoint);
+    private final CopyOnWriteArrayList<T> clusterPointRepository = new CopyOnWriteArrayList<T>();
 
-                return false;
-            } else {
-                Set<T> newSet = new HashSet<>();
-                newSet.add(clusterPoint);
+    public boolean addClusterPoint(T clusterPoint) {
+        boolean isAdd = clusterPointRepository.addIfAbsent(clusterPoint);
 
-                clusterPointRepository.put(destClusterKey, newSet);
-                return true;
-            }
+        if (!isAdd) {
+            logger.warn("Already registered ClusterPoint({}).", clusterPoint);
         }
+
+        return isAdd;
     }
 
-    public boolean removeAndGetIsKeyRemoved(T clusterPoint) {
-        ClusterKey destClusterKey = clusterPoint.getDestClusterKey();
-        synchronized (this) {
-            final Set<T> clusterPointSet = clusterPointRepository.get(destClusterKey);
-            if (clusterPointSet != null) {
-                clusterPointSet.remove(clusterPoint);
+    public boolean removeClusterPoint(T clusterPoint) {
+        boolean isRemove = clusterPointRepository.remove(clusterPoint);
 
-                if (clusterPointSet.isEmpty()) {
-                    clusterPointRepository.remove(destClusterKey);
-                    return true;
-                }
-                logger.info("clusterPointSet was not empty: {}", clusterPoint);
-            } else {
-                logger.info("clusterPointSet not found: {}", clusterPoint);
-            }
-            return false;
+        if (!isRemove) {
+            logger.warn("Already unregistered or not registered ClusterPoint({}).", clusterPoint);
         }
+
+        return isRemove;
     }
 
     public List<T> getClusterPointList() {
-        synchronized (this) {
-            List<T> clusterPointList = new ArrayList<>(clusterPointRepository.size());
-
-            for (Set<T> eachKeysValue : clusterPointRepository.values()) {
-                clusterPointList.addAll(eachKeysValue);
-            }
-
-            return clusterPointList;
-        }
+        return new ArrayList<T>(clusterPointRepository);
     }
 
-    public Set<ClusterKey> getAvailableAgentKeySet() {
-        synchronized (this) {
-            Set<ClusterKey> availableAgentKeySet = new HashSet<>(clusterPointRepository.size());
+    public void clear() {
 
-            for (Map.Entry<ClusterKey, Set<T>> entry : clusterPointRepository.entrySet()) {
-                final ClusterKey key = entry.getKey();
-                final Set<T> clusterPointSet = entry.getValue();
-                for (T clusterPoint : clusterPointSet) {
-                    if (clusterPoint instanceof GrpcAgentConnection) {
-                        PinpointGrpcServer pinpointGrpcServer = ((GrpcAgentConnection) clusterPoint).getPinpointGrpcServer();
-                        if (SocketStateCode.isRunDuplex(pinpointGrpcServer.getState())) {
-                            availableAgentKeySet.add(key);
-                        }
-                    }
-                }
-            }
-            return availableAgentKeySet;
-        }
     }
 
 }

@@ -16,7 +16,6 @@
 
 package com.navercorp.pinpoint.collector.util;
 
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -28,12 +27,13 @@ public class AtomicLongUpdateMap<T> {
     // FIXME consider to save a mapping information at each 30 ~ 50 seconds not to do at each time.
     // consider to change to LRU due to OOM risk
 
-    private final ConcurrentMap<T, AtomicLong> cache = new ConcurrentHashMap<>(1024, 0.75f, 32);
+    private final ConcurrentMap<T, AtomicLong> cache = new ConcurrentHashMap<T, AtomicLong>(1024, 0.75f, 32);
 
 
     public boolean update(final T cacheKey, final long time) {
-        Objects.requireNonNull(cacheKey, "cacheKey");
-
+        if (cacheKey == null) {
+            throw new NullPointerException("cacheKey must not be null");
+        }
         final AtomicLong hitSlot = cache.get(cacheKey);
         if (hitSlot == null ) {
             final AtomicLong newTime = new AtomicLong(time);

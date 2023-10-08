@@ -1,11 +1,11 @@
 /*
- * Copyright 2019 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,17 +16,15 @@
 
 package com.navercorp.pinpoint.collector.dao.hbase.statistics;
 
-import com.navercorp.pinpoint.common.server.util.ApplicationMapStatisticsUtils;
-
-import java.util.Objects;
+import com.navercorp.pinpoint.common.util.ApplicationMapStatisticsUtils;
 
 /**
  * @author emeroad
  */
 public class ResponseColumnName implements ColumnName {
 
-    private final String agentId;
-    private final short columnSlotNumber;
+    private String agentId;
+    private short columnSlotNumber;
 
  // WARNING - cached hash value should not be included for equals/hashCode
     private int hash;
@@ -34,7 +32,10 @@ public class ResponseColumnName implements ColumnName {
     private long callCount;
 
     public ResponseColumnName(String agentId, short columnSlotNumber) {
-        this.agentId = Objects.requireNonNull(agentId, "agentId");
+        if (agentId == null) {
+            throw new NullPointerException("agentId must not be null");
+        }
+        this.agentId = agentId;
         this.columnSlotNumber = columnSlotNumber;
     }
 

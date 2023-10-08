@@ -16,32 +16,28 @@
 
 package com.navercorp.pinpoint.rpc;
 
-import com.navercorp.pinpoint.rpc.packet.stream.StreamClosePacket;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamResponsePacket;
-import com.navercorp.pinpoint.rpc.stream.ClientStreamChannel;
-import com.navercorp.pinpoint.rpc.stream.ClientStreamChannelEventHandler;
-import com.navercorp.pinpoint.rpc.stream.StreamChannelStateCode;
-
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.navercorp.pinpoint.rpc.packet.stream.StreamClosePacket;
+import com.navercorp.pinpoint.rpc.packet.stream.StreamResponsePacket;
+import com.navercorp.pinpoint.rpc.stream.ClientStreamChannelContext;
+import com.navercorp.pinpoint.rpc.stream.ClientStreamChannelMessageListener;
+
 /**
  * @author emeroad
  * @author koo.taejin
  */
-public class RecordedStreamChannelMessageListener extends ClientStreamChannelEventHandler {
+public class RecordedStreamChannelMessageListener implements ClientStreamChannelMessageListener {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final CountDownLatch latch;
-
-    private StreamChannelStateCode stateCode;
-    private int stateUpdatedCount;
 
     private final List<byte[]> receivedMessageList = Collections.synchronizedList(new ArrayList<byte[]>());
 
@@ -50,31 +46,17 @@ public class RecordedStreamChannelMessageListener extends ClientStreamChannelEve
     }
 
     @Override
-    public void handleStreamResponsePacket(ClientStreamChannel streamChannel, StreamResponsePacket packet) {
-        logger.debug("handleStreamResponsePacket() {}, {}", streamChannel, packet);
+    public void handleStreamData(ClientStreamChannelContext streamChannelContext, StreamResponsePacket packet) {
+        logger.info("handleStreamData {}, {}", streamChannelContext, packet);
         receivedMessageList.add(packet.getPayload());
         latch.countDown();
     }
 
     @Override
-    public void handleStreamClosePacket(ClientStreamChannel streamChannel, StreamClosePacket packet) {
-        logger.debug("handleStreamClosePacket() {}, {}", streamChannel, packet);
+    public void handleStreamClose(ClientStreamChannelContext streamChannelContext, StreamClosePacket packet) {
+        logger.info("handleClose {}, {}", streamChannelContext, packet);
         receivedMessageList.add(packet.getPayload());
         latch.countDown();
-    }
-
-    @Override
-    public void stateUpdated(ClientStreamChannel streamChannel, StreamChannelStateCode updatedStateCode) {
-        this.stateCode = updatedStateCode;
-        this.stateUpdatedCount++;
-    }
-
-    public StreamChannelStateCode getCurrentState() {
-        return stateCode;
-    }
-
-    public int getStateUpdatedCount() {
-        return stateUpdatedCount;
     }
 
     public CountDownLatch getLatch() {

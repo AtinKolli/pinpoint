@@ -16,35 +16,34 @@
 
 package com.navercorp.pinpoint.web.applicationmap.rawdata;
 
-import com.navercorp.pinpoint.common.trace.ServiceType;
+import com.navercorp.pinpoint.common.ServiceType;
 import com.navercorp.pinpoint.web.applicationmap.histogram.Histogram;
 import com.navercorp.pinpoint.web.applicationmap.histogram.TimeHistogram;
 import com.navercorp.pinpoint.web.vo.Application;
 import com.navercorp.pinpoint.web.vo.ResponseTime;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
 
 /**
  * @author emeroad
  */
 public class AgentHistogramList {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     // stores times series data per agent
-    private final Map<Application, AgentHistogram> agentHistogramMap = new HashMap<>();
+    private final Map<Application, AgentHistogram> agentHistogramMap = new HashMap<Application, AgentHistogram>();
 
     public AgentHistogramList() {
     }
 
     public AgentHistogramList(Application application, List<ResponseTime> responseHistogramList) {
-        Objects.requireNonNull(responseHistogramList, "responseHistogramList");
+        if (responseHistogramList == null) {
+            throw new NullPointerException("responseHistogramList must not be null");
+        }
 
         for (ResponseTime responseTime : responseHistogramList) {
             for (Map.Entry<String, TimeHistogram> agentEntry : responseTime.getAgentHistogram()) {
@@ -56,17 +55,23 @@ public class AgentHistogramList {
 
 
     public void addTimeHistogram(Application agentId, Collection<TimeHistogram> histogramList) {
-        Objects.requireNonNull(agentId, "agentId");
-        Objects.requireNonNull(histogramList, "histogramList");
-
+        if (agentId == null) {
+            throw new NullPointerException("agentId must not be null");
+        }
+        if (histogramList == null) {
+            throw new NullPointerException("histogramList must not be null");
+        }
         AgentHistogram agentHistogram = getAgentHistogram(agentId);
         agentHistogram.addTimeHistogram(histogramList);
     }
 
     public void addTimeHistogram(Application agentId, TimeHistogram timeHistogram) {
-        Objects.requireNonNull(agentId, "agentId");
-        Objects.requireNonNull(timeHistogram, "timeHistogram");
-
+        if (agentId == null) {
+            throw new NullPointerException("agentId must not be null");
+        }
+        if (timeHistogram == null) {
+            throw new NullPointerException("timeHistogram must not be null");
+        }
         AgentHistogram agentHistogram = getAgentHistogram(agentId);
         agentHistogram.addTimeHistogram(timeHistogram);
     }
@@ -84,9 +89,16 @@ public class AgentHistogramList {
 
 
     private AgentHistogram getAgentHistogram(Application agentId) {
-        Objects.requireNonNull(agentId, "agentId");
+        if (agentId == null) {
+            throw new NullPointerException("agentId must not be null");
+        }
 
-        return agentHistogramMap.computeIfAbsent(agentId, k -> new AgentHistogram(agentId));
+        AgentHistogram agentHistogram = agentHistogramMap.get(agentId);
+        if (agentHistogram == null) {
+            agentHistogram = new AgentHistogram(agentId);
+            agentHistogramMap.put(agentId, agentHistogram);
+        }
+        return agentHistogram;
     }
 
     public Histogram mergeHistogram(ServiceType serviceType) {
@@ -100,8 +112,9 @@ public class AgentHistogramList {
 
 
     public void addAgentHistogram(AgentHistogram agentHistogram) {
-        Objects.requireNonNull(agentHistogram, "agentHistogram");
-
+        if (agentHistogram == null) {
+            throw new NullPointerException("agentHistogram must not be null");
+        }
         final String hostName = agentHistogram.getId();
         ServiceType serviceType = agentHistogram.getServiceType();
 
@@ -111,8 +124,9 @@ public class AgentHistogramList {
     }
 
     public void addAgentHistogram(AgentHistogramList addAgentHistogramList) {
-        Objects.requireNonNull(addAgentHistogramList, "addAgentHistogramList");
-
+        if (addAgentHistogramList == null) {
+            throw new NullPointerException("agentHistogram must not be null");
+        }
         for (AgentHistogram agentHistogram : addAgentHistogramList.agentHistogramMap.values()) {
             addAgentHistogram(agentHistogram);
         }

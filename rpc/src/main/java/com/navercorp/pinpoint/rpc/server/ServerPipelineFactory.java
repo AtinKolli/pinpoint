@@ -17,35 +17,35 @@
 package com.navercorp.pinpoint.rpc.server;
 
 
+import com.navercorp.pinpoint.rpc.codec.PacketDecoder;
 import com.navercorp.pinpoint.rpc.codec.PacketEncoder;
-import com.navercorp.pinpoint.rpc.codec.ServerPacketDecoder;
 import com.navercorp.pinpoint.rpc.server.PinpointServerAcceptor.PinpointServerChannelHandler;
+
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
-
-import java.util.Objects;
 
 /**
  * @author emeroad
  */
 public class ServerPipelineFactory implements ChannelPipelineFactory {
-    private final PinpointServerChannelHandler pinpointServerChannelHandler;
+    private PinpointServerChannelHandler pinpointServerChannelHandler;
 
     public ServerPipelineFactory(PinpointServerChannelHandler pinpointServerChannelHandler) {
-        this.pinpointServerChannelHandler = Objects.requireNonNull(pinpointServerChannelHandler, "pinpointServerChannelHandler");
+        if (pinpointServerChannelHandler == null) {
+            throw new NullPointerException("PinpointServerFactory");
+        }
+        this.pinpointServerChannelHandler = pinpointServerChannelHandler;
     }
 
     @Override
     public ChannelPipeline getPipeline() throws Exception {
         ChannelPipeline pipeline = Channels.pipeline();
 
-        // ServerPacketDecoder passes the PING related packets(without status value) to the pinpointServerChannelHandler.
-        pipeline.addLast("decoder", new ServerPacketDecoder());
+        pipeline.addLast("decoder", new PacketDecoder());
         pipeline.addLast("encoder", new PacketEncoder());
         pipeline.addLast("handler", pinpointServerChannelHandler);
 
         return pipeline;
     }
-
 }

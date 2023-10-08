@@ -16,10 +16,9 @@
 
 package com.navercorp.pinpoint.web.applicationmap.rawdata;
 
-import com.navercorp.pinpoint.web.applicationmap.link.LinkKey;
+import com.navercorp.pinpoint.web.vo.LinkKey;
 
 import java.util.Collection;
-import java.util.Objects;
 
 /**
  * @author emeroad
@@ -54,8 +53,9 @@ public class LinkDataDuplexMap {
 
 
     public void addLinkDataDuplexMap(LinkDataDuplexMap linkDataDuplexMap) {
-        Objects.requireNonNull(linkDataDuplexMap, "linkDataDuplexMap");
-
+        if (linkDataDuplexMap == null) {
+            throw new NullPointerException("linkDataDuplexMap must not be null");
+        }
         for (LinkData copyLinkData : linkDataDuplexMap.sourceLinkDataMap.getLinkDataList()) {
             addSourceLinkData(copyLinkData);
         }
@@ -65,14 +65,17 @@ public class LinkDataDuplexMap {
     }
 
     public void addSourceLinkData(LinkData copyLinkData) {
-        Objects.requireNonNull(copyLinkData, "copyLinkData");
-
+        if (copyLinkData == null) {
+            throw new NullPointerException("copyLinkData must not be null");
+        }
         sourceLinkDataMap.addLinkData(copyLinkData);
     }
 
 
     public void addTargetLinkData(LinkData copyLinkData) {
-        Objects.requireNonNull(copyLinkData, "copyLinkData");
+        if (copyLinkData == null) {
+            throw new NullPointerException("copyLinkData must not be null");
+        }
         targetLinkDataMap.addLinkData(copyLinkData);
     }
 
@@ -83,19 +86,19 @@ public class LinkDataDuplexMap {
 
 
     public LinkData getSourceLinkData(LinkKey findLinkKey) {
-        Objects.requireNonNull(findLinkKey, "findLinkKey");
+        if (findLinkKey == null) {
+            throw new NullPointerException("findLinkKey must not be null");
+        }
 
         return sourceLinkDataMap.getLinkData(findLinkKey);
     }
 
     public LinkData getTargetLinkData(LinkKey findLinkKey) {
-        Objects.requireNonNull(findLinkKey, "findLinkKey");
+        if (findLinkKey == null) {
+            throw new NullPointerException("findLinkKey must not be null");
+        }
 
         return targetLinkDataMap.getLinkData(findLinkKey);
-    }
-
-    public long getTotalCount() {
-        return this.sourceLinkDataMap.getTotalCount() + this.targetLinkDataMap.getTotalCount();
     }
 
     @Override

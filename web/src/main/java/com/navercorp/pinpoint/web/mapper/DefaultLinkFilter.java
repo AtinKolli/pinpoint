@@ -18,29 +18,34 @@ package com.navercorp.pinpoint.web.mapper;
 
 import com.navercorp.pinpoint.web.vo.Application;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
-
-import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author emeroad
  */
 public class DefaultLinkFilter implements LinkFilter {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final Application callerApplication;
     private final Application calleeApplication;
 
     public DefaultLinkFilter(Application callerApplication, Application calleeApplication) {
-        this.callerApplication = Objects.requireNonNull(callerApplication, "callerApplication");
-        this.calleeApplication = Objects.requireNonNull(calleeApplication, "calleeApplication");
+        if (callerApplication == null) {
+            throw new NullPointerException("callerApplication must not be null");
+        }
+        if (calleeApplication == null) {
+            throw new NullPointerException("calleeApplication must not be null");
+        }
+        this.callerApplication = callerApplication;
+        this.calleeApplication = calleeApplication;
     }
 
     public boolean filter(Application foundApplication) {
-        Objects.requireNonNull(foundApplication, "foundApplication");
-
+        if (foundApplication == null) {
+            throw new NullPointerException("foundApplication must not be null");
+        }
         if (this.calleeApplication.getServiceType().isWas() && this.callerApplication.getServiceType().isWas()) {
             logger.debug("check was to was.");
             // if not from same source, drop

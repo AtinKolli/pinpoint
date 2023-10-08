@@ -16,128 +16,152 @@
 
 package com.navercorp.pinpoint.rpc.server;
 
-import com.navercorp.pinpoint.rpc.PinpointSocket;
+import java.io.IOException;
+import java.net.Socket;
+import java.util.List;
+import java.util.Map;
+
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import com.navercorp.pinpoint.rpc.client.PinpointSocket;
+import com.navercorp.pinpoint.rpc.client.PinpointSocketFactory;
 import com.navercorp.pinpoint.rpc.common.SocketStateCode;
 import com.navercorp.pinpoint.rpc.control.ProtocolException;
+import com.navercorp.pinpoint.rpc.packet.ControlHandshakePacket;
+import com.navercorp.pinpoint.rpc.util.ControlMessageEncodingUtils;
 import com.navercorp.pinpoint.rpc.util.PinpointRPCTestUtils;
-import com.navercorp.pinpoint.test.client.TestPinpointClient;
-import com.navercorp.pinpoint.test.client.TestRawSocket;
-import com.navercorp.pinpoint.test.server.TestPinpointServerAcceptor;
-import com.navercorp.pinpoint.test.server.TestServerMessageListenerFactory;
-import org.awaitility.Awaitility;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-
-import java.io.IOException;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * @author Taejin Koo
  */
 public class PinpointServerStateTest {
 
-    private final TestServerMessageListenerFactory testServerMessageListenerFactory = new TestServerMessageListenerFactory(TestServerMessageListenerFactory.HandshakeType.DUPLEX);
+    private static int bindPort;
+
+    @BeforeClass
+    public static void setUp() throws IOException {
+        bindPort = PinpointRPCTestUtils.findAvailablePort();
+    }
 
     @Test
-    public void closeByPeerTest() {
-        TestPinpointServerAcceptor testPinpointServerAcceptor = new TestPinpointServerAcceptor(testServerMessageListenerFactory);
-
-        TestPinpointClient testPinpointClient = new TestPinpointClient(testServerMessageListenerFactory.create(), PinpointRPCTestUtils.getParams());
+    public void closeByPeerTest() throws InterruptedException {
+        PinpointServerAcceptor serverAcceptor = null;
+        PinpointSocket pinpointSocket = null;
+        PinpointSocketFactory clientSocketFactory = null;
         try {
-            int bindPort = testPinpointServerAcceptor.bind();
+            serverAcceptor = PinpointRPCTestUtils.createPinpointServerFactory(bindPort, PinpointRPCTestUtils.createEchoServerListener());
 
-            testPinpointClient.connect(bindPort);
-            testPinpointServerAcceptor.assertAwaitClientConnected(1000);
+            clientSocketFactory = PinpointRPCTestUtils.createSocketFactory(PinpointRPCTestUtils.getParams(), PinpointRPCTestUtils.createEchoClientListener());
+            pinpointSocket = clientSocketFactory.connect("127.0.0.1", bindPort);
+            Thread.sleep(1000);
 
-            PinpointSocket pinpointServer = testPinpointServerAcceptor.getConnectedPinpointSocketList().get(0);
-            if (pinpointServer instanceof PinpointServer) {
-                Assertions.assertEquals(SocketStateCode.RUN_DUPLEX, ((PinpointServer) pinpointServer).getCurrentStateCode());
+            List<PinpointServer> pinpointServerList = serverAcceptor.getWritableServerList();
+            PinpointServer pinpointServer = pinpointServerList.get(0);
+            Assert.assertEquals(SocketStateCode.RUN_DUPLEX, pinpointServer.getCurrentStateCode());
 
-                testPinpointClient.disconnect();
-                assertPinpointServerState(SocketStateCode.CLOSED_BY_CLIENT, (PinpointServer) pinpointServer);
-            } else {
-                Assertions.fail();
+            pinpointSocket.close();
+            Thread.sleep(1000);
+
+            Assert.assertEquals(SocketStateCode.CLOSED_BY_CLIENT, pinpointServer.getCurrentStateCode());
+        } finally {
+            PinpointRPCTestUtils.close(pinpointSocket);
+            if (clientSocketFactory != null) {
+                clientSocketFactory.release();
             }
-        } finally {
-            testPinpointClient.closeAll();
-            testPinpointServerAcceptor.close();
+            PinpointRPCTestUtils.close(serverAcceptor);
         }
     }
 
     @Test
-    public void closeTest() {
-        TestPinpointServerAcceptor testPinpointServerAcceptor = new TestPinpointServerAcceptor(testServerMessageListenerFactory);
-
-        TestPinpointClient testPinpointClient = new TestPinpointClient(testServerMessageListenerFactory.create(), PinpointRPCTestUtils.getParams());
+    public void closeTest() throws InterruptedException {
+        PinpointServerAcceptor serverAcceptor = null;
+        PinpointSocket pinpointSocket = null;
+        PinpointSocketFactory clientSocketFactory = null;
         try {
-            int bindPort = testPinpointServerAcceptor.bind();
+            serverAcceptor = PinpointRPCTestUtils.createPinpointServerFactory(bindPort, PinpointRPCTestUtils.createEchoServerListener());
 
-            testPinpointClient.connect(bindPort);
-            testPinpointServerAcceptor.assertAwaitClientConnected(1000);
+            clientSocketFactory = PinpointRPCTestUtils.createSocketFactory(PinpointRPCTestUtils.getParams(), PinpointRPCTestUtils.createEchoClientListener());
+            pinpointSocket = clientSocketFactory.connect("127.0.0.1", bindPort);
+            Thread.sleep(1000);
 
-            PinpointSocket pinpointServer = testPinpointServerAcceptor.getConnectedPinpointSocketList().get(0);
-            Assertions.assertEquals(SocketStateCode.RUN_DUPLEX, ((PinpointServer) pinpointServer).getCurrentStateCode());
+            List<PinpointServer> pinpointServerList = serverAcceptor.getWritableServerList();
+            PinpointServer pinpointServer = pinpointServerList.get(0);
+            Assert.assertEquals(SocketStateCode.RUN_DUPLEX, pinpointServer.getCurrentStateCode());
 
-            testPinpointServerAcceptor.close();
-            assertPinpointServerState(SocketStateCode.CLOSED_BY_SERVER, (PinpointServer) pinpointServer);
+            serverAcceptor.close();
+            Thread.sleep(1000);
+
+            Assert.assertEquals(SocketStateCode.CLOSED_BY_SERVER, pinpointServer.getCurrentStateCode());
         } finally {
-            testPinpointClient.closeAll();
-            testPinpointServerAcceptor.close();
-        }
-    }
-
-    @Test
-    public void unexpectedCloseByPeerTest() throws IOException, ProtocolException {
-        TestPinpointServerAcceptor testPinpointServerAcceptor = new TestPinpointServerAcceptor(testServerMessageListenerFactory);
-        try {
-            int bindPort = testPinpointServerAcceptor.bind();
-
-            TestRawSocket testRawSocket = new TestRawSocket();
-            testRawSocket.connect(bindPort);
-
-            testRawSocket.sendHandshakePacket(PinpointRPCTestUtils.getParams());
-            testPinpointServerAcceptor.assertAwaitClientConnected(1, 1000);
-
-            PinpointSocket pinpointServer = testPinpointServerAcceptor.getConnectedPinpointSocketList().get(0);
-            if (!(pinpointServer instanceof PinpointServer)) {
-                testRawSocket.close();
-                Assertions.fail();
+            PinpointRPCTestUtils.close(pinpointSocket);
+            if (clientSocketFactory != null) {
+                clientSocketFactory.release();
             }
-
-            Assertions.assertEquals(SocketStateCode.RUN_DUPLEX, ((PinpointServer) pinpointServer).getCurrentStateCode());
-            testRawSocket.close();
-            assertPinpointServerState(SocketStateCode.UNEXPECTED_CLOSE_BY_CLIENT, (PinpointServer) pinpointServer);
-        } finally {
-            testPinpointServerAcceptor.close();
+            PinpointRPCTestUtils.close(serverAcceptor);
         }
     }
 
     @Test
-    public void unexpectedCloseTest() {
-        TestPinpointServerAcceptor testPinpointServerAcceptor = new TestPinpointServerAcceptor(testServerMessageListenerFactory);
-
-        TestPinpointClient testPinpointClient = new TestPinpointClient(testServerMessageListenerFactory.create(), PinpointRPCTestUtils.getParams());
+    public void unexpecteCloseByPeerTest() throws InterruptedException, IOException, ProtocolException {
+        PinpointServerAcceptor serverAcceptor = null;
         try {
-            int bindPort = testPinpointServerAcceptor.bind();
+            serverAcceptor = PinpointRPCTestUtils.createPinpointServerFactory(bindPort, PinpointRPCTestUtils.createEchoServerListener());
 
-            testPinpointClient.connect(bindPort);
-            testPinpointServerAcceptor.assertAwaitClientConnected(1000);
+            Socket socket = new Socket("127.0.0.1", bindPort);
+            socket.getOutputStream().write(createHandshakePayload(PinpointRPCTestUtils.getParams()));
+            socket.getOutputStream().flush();
+            Thread.sleep(1000);
 
-            PinpointSocket pinpointServer = testPinpointServerAcceptor.getConnectedPinpointSocketList().get(0);
-            Assertions.assertEquals(SocketStateCode.RUN_DUPLEX, ((PinpointServer) pinpointServer).getCurrentStateCode());
+            List<PinpointServer> pinpointServerList = serverAcceptor.getWritableServerList();
+            PinpointServer pinpointServer = pinpointServerList.get(0);
+            Assert.assertEquals(SocketStateCode.RUN_DUPLEX, pinpointServer.getCurrentStateCode());
 
-            ((DefaultPinpointServer) pinpointServer).stop(true);
-            assertPinpointServerState(SocketStateCode.UNEXPECTED_CLOSE_BY_SERVER, (PinpointServer) pinpointServer);
+            socket.close();
+            Thread.sleep(1000);
+
+            Assert.assertEquals(SocketStateCode.UNEXPECTED_CLOSE_BY_CLIENT, pinpointServer.getCurrentStateCode());
         } finally {
-            testPinpointClient.closeAll();
-            testPinpointServerAcceptor.close();
+            PinpointRPCTestUtils.close(serverAcceptor);
         }
     }
 
-    private void assertPinpointServerState(final SocketStateCode stateCode, final PinpointServer pinpointServer) {
-        Awaitility.await()
-                .untilAsserted(() -> assertThat(pinpointServer.getCurrentStateCode()).isEqualTo(stateCode));
+    @Test
+    public void unexpecteCloseTest() throws InterruptedException, IOException, ProtocolException {
+        PinpointServerAcceptor serverAcceptor = null;
+        PinpointSocket pinpointSocket = null;
+        PinpointSocketFactory clientSocketFactory = null;
+        try {
+            serverAcceptor = PinpointRPCTestUtils.createPinpointServerFactory(bindPort, PinpointRPCTestUtils.createEchoServerListener());
+
+            clientSocketFactory = PinpointRPCTestUtils.createSocketFactory(PinpointRPCTestUtils.getParams(), PinpointRPCTestUtils.createEchoClientListener());
+            pinpointSocket = clientSocketFactory.connect("127.0.0.1", bindPort);
+            Thread.sleep(1000);
+
+            List<PinpointServer> pinpointServerList = serverAcceptor.getWritableServerList();
+            PinpointServer pinpointServer = pinpointServerList.get(0);
+            Assert.assertEquals(SocketStateCode.RUN_DUPLEX, pinpointServer.getCurrentStateCode());
+
+            ((DefaultPinpointServer)pinpointServer).stop(true);
+            Thread.sleep(1000);
+
+            Assert.assertEquals(SocketStateCode.UNEXPECTED_CLOSE_BY_SERVER, pinpointServer.getCurrentStateCode());
+        } finally {
+            PinpointRPCTestUtils.close(pinpointSocket);
+            if (clientSocketFactory != null) {
+                clientSocketFactory.release();
+            }
+            PinpointRPCTestUtils.close(serverAcceptor);
+        }
+    }
+    
+    private byte[] createHandshakePayload(Map<String, Object> data) throws ProtocolException {
+        byte[] payload = ControlMessageEncodingUtils.encode(data);
+        ControlHandshakePacket handshakePacket = new ControlHandshakePacket(payload);
+        ChannelBuffer channelBuffer = handshakePacket.toBuffer();
+        return channelBuffer.toByteBuffer().array();
     }
 
 }

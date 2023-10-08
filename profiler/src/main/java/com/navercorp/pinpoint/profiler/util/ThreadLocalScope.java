@@ -16,52 +16,58 @@
 
 package com.navercorp.pinpoint.profiler.util;
 
-import com.navercorp.pinpoint.bootstrap.instrument.InterceptorScopeDefinition;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.AttachmentFactory;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.ExecutionPolicy;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.InterceptorScopeInvocation;
-import com.navercorp.pinpoint.profiler.interceptor.scope.DefaultInterceptorScopeInvocation;
-
-import java.util.Objects;
+import com.navercorp.pinpoint.bootstrap.instrument.AttachmentFactory;
+import com.navercorp.pinpoint.bootstrap.instrument.Scope;
+import com.navercorp.pinpoint.bootstrap.instrument.ScopeDefinition;
+import com.navercorp.pinpoint.bootstrap.interceptor.group.ExecutionPoint;
+import com.navercorp.pinpoint.profiler.plugin.DefaultScope;
 
 /**
  * @author emeroad
  */
-public class ThreadLocalScope implements InterceptorScopeInvocation {
+public class ThreadLocalScope implements Scope {
 
-    private final NamedThreadLocal<InterceptorScopeInvocation> scope;
+    private final NamedThreadLocal<Scope> scope;
 
 
-    public ThreadLocalScope(final InterceptorScopeDefinition scopeDefinition) {
-        Objects.requireNonNull(scopeDefinition, "scopeDefinition");
-
-        this.scope = new NamedThreadLocal<InterceptorScopeInvocation>(scopeDefinition.getName()) {
+    public ThreadLocalScope(final ScopeDefinition scopeDefinition) {
+        if (scopeDefinition == null) {
+            throw new NullPointerException("scopeDefinition must not be null");
+        }
+        
+        this.scope = new NamedThreadLocal<Scope>(scopeDefinition.getName()) {
             @Override
-            protected InterceptorScopeInvocation initialValue() {
-                return new DefaultInterceptorScopeInvocation(scopeDefinition.getName());
+            protected Scope initialValue() {
+                return new DefaultScope(scopeDefinition.getName());
             }
         };
     }
     
     @Override
-    public void leave(ExecutionPolicy policy) {
-        final InterceptorScopeInvocation localScope = getLocalScope();
-        localScope.leave(policy);
+    public void entered(ExecutionPoint point) {
+        final Scope localScope = getLocalScope();
+        localScope.entered(point);
     }
 
     @Override
-    public boolean tryEnter(ExecutionPolicy policy) {
-        final InterceptorScopeInvocation localScope = getLocalScope();
-        return localScope.tryEnter(policy);
+    public void leaved(ExecutionPoint point) {
+        final Scope localScope = getLocalScope();
+        localScope.leaved(point);
     }
 
     @Override
-    public boolean canLeave(ExecutionPolicy policy) {
-        final InterceptorScopeInvocation localScope = getLocalScope();
-        return localScope.canLeave(policy);
+    public boolean tryEnter(ExecutionPoint point) {
+        final Scope localScope = getLocalScope();
+        return localScope.tryEnter(point);
     }
 
-    protected InterceptorScopeInvocation getLocalScope() {
+    @Override
+    public boolean tryLeave(ExecutionPoint point) {
+        final Scope localScope = getLocalScope();
+        return localScope.tryLeave(point);
+    }
+
+    protected Scope getLocalScope() {
         return scope.get();
     }
 
@@ -80,32 +86,32 @@ public class ThreadLocalScope implements InterceptorScopeInvocation {
     }
 
     @Override
-    public boolean isActive() {
-        final InterceptorScopeInvocation localScope = getLocalScope();
-        return localScope.isActive();
+    public boolean isIn() {
+        final Scope localScope = getLocalScope();
+        return localScope.isIn();
     }
 
     @Override
     public Object setAttachment(Object attachment) {
-        final InterceptorScopeInvocation localScope = getLocalScope();
+        final Scope localScope = getLocalScope();
         return localScope.setAttachment(attachment);
     }
 
     @Override
     public Object getAttachment() {
-        final InterceptorScopeInvocation localScope = getLocalScope();
+        final Scope localScope = getLocalScope();
         return localScope.getAttachment();
     }
     
     @Override
     public Object getOrCreateAttachment(AttachmentFactory factory) {
-        final InterceptorScopeInvocation localScope = getLocalScope();
+        final Scope localScope = getLocalScope();
         return localScope.getOrCreateAttachment(factory);
     }
 
     @Override
     public Object removeAttachment() {
-        final InterceptorScopeInvocation localScope = getLocalScope();
+        final Scope localScope = getLocalScope();
         return localScope.removeAttachment();
     }
 }

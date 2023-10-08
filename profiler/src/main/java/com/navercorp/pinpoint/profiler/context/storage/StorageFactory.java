@@ -16,11 +16,9 @@
 
 package com.navercorp.pinpoint.profiler.context.storage;
 
-import com.navercorp.pinpoint.profiler.context.SpanChunkFactory;
-
 /**
  * @author emeroad
  */
 public interface StorageFactory {
-    Storage createStorage(SpanChunkFactory spanChunkFactory);
+    Storage createStorage();
 }

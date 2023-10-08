@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright 2014 NAVER Corp.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,18 +20,26 @@ package com.navercorp.pinpoint.test.plugin;
  */
 @SuppressWarnings("serial")
 public class PinpointPluginTestException extends RuntimeException {
-    private final String exceptionClass;
-
-    public PinpointPluginTestException(String exceptionClass, String message, Throwable cause) {
-        super(concat(exceptionClass, message), cause, false, false);
-        this.exceptionClass = exceptionClass;
+    public PinpointPluginTestException(String message, StackTraceElement[] stackTrace) {
+        super(message);
+        setStackTrace(stackTrace);
     }
 
-    public String getExceptionClass() {
-        return exceptionClass;
+    public PinpointPluginTestException() {
+        super();
     }
 
-    private static String concat(String exceptionClass, String message) {
-        return exceptionClass + ": " + message;
+    public PinpointPluginTestException(String message, Throwable cause) {
+        super(message, cause);
     }
+
+    public PinpointPluginTestException(String message) {
+        super(message);
+    }
+
+    public PinpointPluginTestException(Throwable cause) {
+        super(cause);
+    }
+    
+    
 }

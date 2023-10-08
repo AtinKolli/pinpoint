@@ -16,10 +16,13 @@
 
 package com.navercorp.pinpoint.common.util;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.navercorp.pinpoint.common.util.StringTraceHeaderParser;
+import com.navercorp.pinpoint.common.util.TraceHeader;
 
 import java.util.UUID;
 
@@ -28,14 +31,14 @@ import java.util.UUID;
  */
 public class StringTraceHeaderParserTest {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final StringTraceHeaderParser parser = new StringTraceHeaderParser();
+    private StringTraceHeaderParser parser= new StringTraceHeaderParser();
 
     @Test
     public void getIdSize() {
         String test = "3ccb94f3-a8fe-4464-bfbd-d35490afab3d";
-        logger.debug("idSize={}", test.length());
+        logger.info("idSize={}", test.length());
     }
 
 
@@ -47,15 +50,16 @@ public class StringTraceHeaderParserTest {
     }
 
 
+
     private void createAndParser(String uuid, int spanId, int pSpanId, int sampling, short flag) {
-        String traceHeader = parser.createHeader(uuid, spanId, pSpanId, sampling, flag);
+        String traceHeader = parser.createHeader(uuid, spanId, pSpanId, sampling, (short) flag);
 
         TraceHeader header = parser.parseHeader(traceHeader);
-        Assertions.assertEquals(uuid, header.getId(), "id");
-        Assertions.assertEquals(String.valueOf(spanId), header.getSpanId(), "spanId");
-        Assertions.assertEquals(String.valueOf(pSpanId), header.getParentSpanId(), "pSpanId");
-        Assertions.assertEquals(String.valueOf(sampling), header.getSampling(), "sampling");
-        Assertions.assertEquals(String.valueOf(flag), header.getFlag(), "flag");
-        logger.debug("parse:{}", header);
+        Assert.assertEquals("id", uuid, header.getId());
+        Assert.assertEquals("spanId", String.valueOf(spanId), header.getSpanId());
+        Assert.assertEquals("pSpanId", String.valueOf(pSpanId), header.getParentSpanId());
+        Assert.assertEquals("sampling", String.valueOf(sampling), header.getSampling());
+        Assert.assertEquals("flag", String.valueOf(flag), header.getFlag());
+        logger.info("{}, parse:" + header);
     }
 }

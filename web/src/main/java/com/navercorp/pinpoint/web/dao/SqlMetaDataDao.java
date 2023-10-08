@@ -16,7 +16,7 @@
 
 package com.navercorp.pinpoint.web.dao;
 
-import com.navercorp.pinpoint.common.server.bo.SqlMetaDataBo;
+import com.navercorp.pinpoint.common.bo.SqlMetaDataBo;
 
 import java.util.List;
 
@@ -24,5 +24,5 @@ import java.util.List;
  * @author emeroad
  */
 public interface SqlMetaDataDao {
-    List<SqlMetaDataBo> getSqlMetaData(String agentId, long time, int sqlId);
+    List<SqlMetaDataBo> getSqlMetaData(String agentId, long time, int hashCode);
 }

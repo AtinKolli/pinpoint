@@ -16,19 +16,21 @@
 
 package com.navercorp.pinpoint.common.util;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.After;
+import org.junit.Assert;
+
+import org.junit.Before;
+import org.junit.Test;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URL;
 import java.net.URLClassLoader;
 
 public class ClassLoaderUtilsTest {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private static final URLClassLoader FAKE_CLASS_LOADER = new URLClassLoader(new URL[0]);
 
@@ -41,13 +43,13 @@ public class ClassLoaderUtilsTest {
 
     private ClassLoader beforeSetupClassLoader;
 
-    @BeforeEach
+    @Before
     public void setUp() throws Exception {
         Thread currentThread = Thread.currentThread();
         beforeSetupClassLoader = currentThread.getContextClassLoader();
     }
 
-    @AfterEach
+    @After
     public void tearDown() throws Exception {
         Thread currentThread = Thread.currentThread();
         currentThread.setContextClassLoader(beforeSetupClassLoader);
@@ -60,7 +62,7 @@ public class ClassLoaderUtilsTest {
 
         ClassLoader classLoader = ClassLoaderUtils.getDefaultClassLoader();
 
-        Assertions.assertSame(contextClassLoader, classLoader);
+        Assert.assertSame(contextClassLoader, classLoader);
     }
 
     @Test
@@ -70,7 +72,7 @@ public class ClassLoaderUtilsTest {
         currentThread.setContextClassLoader(FAKE_CLASS_LOADER);
         ClassLoader classLoader = ClassLoaderUtils.getDefaultClassLoader();
 
-        Assertions.assertSame(classLoader, FAKE_CLASS_LOADER);
+        Assert.assertSame(classLoader, FAKE_CLASS_LOADER);
     }
 
     @Test
@@ -81,29 +83,13 @@ public class ClassLoaderUtilsTest {
 
         ClassLoader classLoader = ClassLoaderUtils.getDefaultClassLoader(FAKE_CLASS_LOADER_CALLABLE);
 
-        Assertions.assertSame(classLoader, FAKE_CLASS_LOADER);
+        Assert.assertSame(classLoader, FAKE_CLASS_LOADER);
 
     }
 
     @Test
     public void append() throws Exception {
         String log = ClassLoaderUtils.dumpStandardClassLoader();
-        logger.debug("StandardClassLoader dump:{}", log);
-    }
-
-    @Test
-    public void dumpStandardClassLoader() {
-        String jvmClassLoader = ClassLoaderUtils.dumpStandardClassLoader();
-        logger.debug("{}", jvmClassLoader);
-    }
-
-    @Test
-    public void test() {
-        Assertions.assertTrue(ClassLoaderUtils.isJvmClassLoader(ClassLoader.getSystemClassLoader()));
-        Assertions.assertTrue(ClassLoaderUtils.isJvmClassLoader(ClassLoader.getSystemClassLoader().getParent()));
-        Assertions.assertTrue(ClassLoaderUtils.isJvmClassLoader(Object.class.getClassLoader()));
-
-        Assertions.assertFalse(ClassLoaderUtils.isJvmClassLoader(new URLClassLoader(new URL[0])));
-
+        logger.info("StandardClassLoader dump:{}", log);
     }
 }

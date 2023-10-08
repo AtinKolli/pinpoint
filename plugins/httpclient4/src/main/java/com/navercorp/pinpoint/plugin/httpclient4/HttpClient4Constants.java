@@ -15,27 +15,25 @@
  */
 package com.navercorp.pinpoint.plugin.httpclient4;
 
-import static com.navercorp.pinpoint.common.trace.ServiceTypeProperty.*;
+import static com.navercorp.pinpoint.common.HistogramSchema.NORMAL_SCHEMA;
+import static com.navercorp.pinpoint.common.ServiceTypeProperty.RECORD_STATISTICS;
 
-import com.navercorp.pinpoint.common.trace.ServiceType;
-import com.navercorp.pinpoint.common.trace.ServiceTypeFactory;
-
+import com.navercorp.pinpoint.common.ServiceType;
 
 /**
  * 
  * @author jaehong.kim
  *
  */
-public final class HttpClient4Constants {
-    private HttpClient4Constants() {
-    }
+public interface HttpClient4Constants {
 
-    public static final ServiceType HTTP_CLIENT_4 = ServiceTypeFactory.of(9052, "HTTP_CLIENT_4", RECORD_STATISTICS);
-    public static final ServiceType HTTP_CLIENT_4_INTERNAL = ServiceTypeFactory.of(9053, "HTTP_CLIENT_4_INTERNAL", "HTTP_CLIENT_4");
+    public static final ServiceType HTTP_CLIENT4 = ServiceType.of(9052, "HTTP_CLIENT4", NORMAL_SCHEMA, RECORD_STATISTICS);
+    public static final ServiceType HTTP_CLIENT4_INTERNAL = ServiceType.of(9053, "HTTP_CLIENT4_INTERNAL", "HTTP_CLIENT", NORMAL_SCHEMA);
 
-    public static final String METADATA_ASYNC_CONTEXT = "asyncContext";
-    public static final String FIELD_REQUEST_PRODUCER = "requestProducer";
-    public static final String FIELD_RESULT_FUTURE = "resultFuture";
+    public static final String METADATA_END_POINT = "endPoint";
+    public static final String METADATA_DESTINATION_ID = "destinationId";
+    public static final String METADATA_ASYNC_TRACE_ID = "asyncTraceId";
+    
     
     public static final String HTTP_CLIENT4_SCOPE = "HttpClient4Scope"; 
 }

@@ -16,12 +16,10 @@
 
 package com.navercorp.pinpoint.web.util;
 
-import com.navercorp.pinpoint.common.server.util.time.Range;
+import com.navercorp.pinpoint.web.vo.Range;
 
-import java.time.Instant;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 
 /**
  * 
@@ -41,9 +39,14 @@ public class TimeWindow implements Iterable<Long> {
     }
 
     public TimeWindow(Range range, TimeWindowSampler sampler) {
-        this.range = Objects.requireNonNull(range, "range");
-        Objects.requireNonNull(sampler, "sampler");
+        if (range == null) {
+            throw new NullPointerException("range must not be null");
+        }
+        if (sampler == null) {
+            throw new NullPointerException("sampler must not be null");
+        }
         this.windowSlotSize = sampler.getWindowSize(range);
+        this.range = range;
         this.windowRange = createWindowRange();
     }
 
@@ -71,19 +74,13 @@ public class TimeWindow implements Iterable<Long> {
     }
 
     public long getWindowRangeCount() {
-        return (windowRange.durationMillis() / windowSlotSize) + 1;
-    }
-
-    public Range getWindowSlotRange() {
-        Instant scanFrom = windowRange.getFromInstant();
-        long scanTo = windowRange.getTo() + getWindowSlotSize();
-        return  Range.between(scanFrom, Instant.ofEpochMilli(scanTo));
+        return (windowRange.getRange() / windowSlotSize) + 1;
     }
 
     private Range createWindowRange() {
         long from = refineTimestamp(range.getFrom());
         long to = refineTimestamp(range.getTo());
-        return Range.between(from, to);
+        return new Range(from, to);
     }
 
     public int getWindowIndex(long time) {

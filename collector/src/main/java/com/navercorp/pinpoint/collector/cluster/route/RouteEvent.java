@@ -16,9 +16,9 @@
 
 package com.navercorp.pinpoint.collector.cluster.route;
 
-import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
+import org.jboss.netty.channel.Channel;
 
-import java.net.SocketAddress;
+import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
 
 /**
  * @author koo.taejin
@@ -27,6 +27,6 @@ public interface RouteEvent {
 
     TCommandTransfer getDeliveryCommand();
 
-    SocketAddress getRemoteAddress();
+    Channel getSourceChannel();
 
 }

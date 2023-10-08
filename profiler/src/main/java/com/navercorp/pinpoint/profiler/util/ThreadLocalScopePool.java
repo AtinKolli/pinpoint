@@ -16,38 +16,38 @@
 
 package com.navercorp.pinpoint.profiler.util;
 
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import com.navercorp.pinpoint.bootstrap.instrument.InterceptorScopeDefinition;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.InterceptorScopeInvocation;
+import com.navercorp.pinpoint.bootstrap.instrument.Scope;
+import com.navercorp.pinpoint.bootstrap.instrument.ScopeDefinition;
 
 /**
  * @author emeroad
  */
 public class ThreadLocalScopePool implements ScopePool {
 
-    private final ConcurrentMap<InterceptorScopeDefinition, InterceptorScopeInvocation> pool = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ScopeDefinition, Scope> pool = new ConcurrentHashMap<ScopeDefinition, Scope>();
 
     @Override
-    public InterceptorScopeInvocation getScope(InterceptorScopeDefinition scopeDefinition) {
-        Objects.requireNonNull(scopeDefinition, "scopeDefinition");
-
-        final InterceptorScopeInvocation scope = this.pool.get(scopeDefinition);
+    public Scope getScope(ScopeDefinition scopeDefinition) {
+        if (scopeDefinition == null) {
+            throw new NullPointerException("scopeDefinition must not be null");
+        }
+        final Scope scope = this.pool.get(scopeDefinition);
         if (scope != null) {
             return scope;
         }
 
-        final InterceptorScopeInvocation newScope = createScope(scopeDefinition);
-        final InterceptorScopeInvocation exist = this.pool.putIfAbsent(scopeDefinition, newScope);
+        final Scope newScope = createScope(scopeDefinition);
+        final Scope exist = this.pool.putIfAbsent(scopeDefinition, newScope);
         if (exist != null) {
             return exist;
         }
         return newScope;
     }
 
-    private InterceptorScopeInvocation createScope(InterceptorScopeDefinition scopeDefinition) {
+    private Scope createScope(ScopeDefinition scopeDefinition) {
         return new ThreadLocalScope(scopeDefinition);
     }
 

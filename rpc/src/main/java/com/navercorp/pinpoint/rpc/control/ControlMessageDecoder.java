@@ -18,7 +18,6 @@ package com.navercorp.pinpoint.rpc.control;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,10 +28,10 @@ import java.util.Map;
  */
 public class ControlMessageDecoder {
 
-    private final Charset charset;
+    private Charset charset;
 
     public ControlMessageDecoder() {
-        this.charset = StandardCharsets.UTF_8;
+        this.charset = Charset.forName("UTF-8");
     }
 
     public Object decode(byte[] in) throws ProtocolException {
@@ -57,14 +56,14 @@ public class ControlMessageDecoder {
         case ControlMessageProtocolConstant.TYPE_CHARACTER_STRING:
             return decodeString(in);
         case ControlMessageProtocolConstant.CONTROL_CHARACTER_LIST_START:
-            List<Object> answerList = new ArrayList<>();
+            List<Object> answerList = new ArrayList<Object>();
             while (!isListFinished(in)) {
                 answerList.add(decode(in));
             }
             in.get(); // Skip the terminator
             return answerList;
         case ControlMessageProtocolConstant.CONTROL_CHARACTER_MAP_START:
-            Map<Object, Object> answerMap = new LinkedHashMap<>();
+            Map<Object, Object> answerMap = new LinkedHashMap<Object, Object>();
             while (!isMapFinished(in)) {
                 Object key = decode(in);
                 Object value = decode(in);

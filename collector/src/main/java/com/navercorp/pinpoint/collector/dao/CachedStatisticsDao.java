@@ -22,7 +22,5 @@ package com.navercorp.pinpoint.collector.dao;
  * 
  */
 public interface CachedStatisticsDao {
-    void flushLink();
-
-    void flushAvgMax();
+    void flushAll();
 }

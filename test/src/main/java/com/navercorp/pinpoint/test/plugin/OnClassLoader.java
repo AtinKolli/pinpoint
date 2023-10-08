@@ -24,6 +24,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface OnClassLoader {
-    boolean system() default false;
+    boolean system() default true;
     boolean child() default true;
 }

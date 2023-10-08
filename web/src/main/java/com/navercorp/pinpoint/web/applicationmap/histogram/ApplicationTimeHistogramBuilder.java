@@ -20,11 +20,11 @@ import com.navercorp.pinpoint.web.applicationmap.rawdata.LinkCallData;
 import com.navercorp.pinpoint.web.util.TimeWindow;
 import com.navercorp.pinpoint.web.util.TimeWindowDownSampler;
 import com.navercorp.pinpoint.web.vo.Application;
-import com.navercorp.pinpoint.common.server.util.time.Range;
+import com.navercorp.pinpoint.web.vo.Range;
 import com.navercorp.pinpoint.web.vo.ResponseTime;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -32,7 +32,7 @@ import java.util.*;
  * @author emeroad
  */
 public class ApplicationTimeHistogramBuilder {
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final Application application;
     private final Range range;
@@ -41,15 +41,23 @@ public class ApplicationTimeHistogramBuilder {
 
 
     public ApplicationTimeHistogramBuilder(Application application, Range range) {
-        this.application = Objects.requireNonNull(application, "application");
-        this.range = Objects.requireNonNull(range, "range");
+        if (application == null) {
+            throw new NullPointerException("application must not be null");
+        }
+        if (range == null) {
+            throw new NullPointerException("range must not be null");
+        }
+        this.application = application;
+        this.range = range;
         this.window = new TimeWindow(range, TimeWindowDownSampler.SAMPLER);
     }
 
     public ApplicationTimeHistogram build(List<ResponseTime> responseHistogramList) {
-        Objects.requireNonNull(responseHistogramList, "responseHistogramList");
+        if (responseHistogramList == null) {
+            throw new NullPointerException("responseHistogramList must not be null");
+        }
 
-        Map<Long, TimeHistogram> applicationLevelHistogram = new HashMap<>();
+        Map<Long, TimeHistogram> applicationLevelHistogram = new HashMap<Long, TimeHistogram>();
 
         for (ResponseTime responseTime : responseHistogramList) {
             final Long timeStamp = responseTime.getTimeStamp();
@@ -76,7 +84,7 @@ public class ApplicationTimeHistogramBuilder {
     }
 
     public ApplicationTimeHistogram build(Collection<LinkCallData> linkCallDataMapList) {
-        Map<Long, TimeHistogram> applicationLevelHistogram = new HashMap<>();
+        Map<Long, TimeHistogram> applicationLevelHistogram = new HashMap<Long, TimeHistogram>();
         for (LinkCallData linkCallData : linkCallDataMapList) {
             for (TimeHistogram timeHistogram : linkCallData.getTimeHistogram()) {
                 Long timeStamp = timeHistogram.getTimeStamp();
@@ -103,7 +111,7 @@ public class ApplicationTimeHistogramBuilder {
     private List<TimeHistogram> interpolation(Collection<TimeHistogram> histogramList) {
         // upon individual span query, "window time" alone may not be enough
         //
-        Map<Long, TimeHistogram> resultMap = new HashMap<>();
+        Map<Long, TimeHistogram> resultMap = new HashMap<Long, TimeHistogram>();
         for (Long time : window) {
             resultMap.put(time, new TimeHistogram(application.getServiceType(), time));
         }
@@ -112,13 +120,17 @@ public class ApplicationTimeHistogramBuilder {
         for (TimeHistogram timeHistogram : histogramList) {
             long time = window.refineTimestamp(timeHistogram.getTimeStamp());
 
-            TimeHistogram windowHistogram = resultMap.computeIfAbsent(time, t -> new TimeHistogram(application.getServiceType(), t));
+            TimeHistogram windowHistogram = resultMap.get(time);
+            if (windowHistogram == null) {
+                windowHistogram = new TimeHistogram(application.getServiceType(), time);
+                resultMap.put(time, windowHistogram);
+            }
             windowHistogram.add(timeHistogram);
         }
 
 
-        List<TimeHistogram> resultList = new ArrayList<>(resultMap.values());
-        resultList.sort(TimeHistogram.TIME_STAMP_ASC_COMPARATOR);
+        List<TimeHistogram> resultList = new ArrayList<TimeHistogram>(resultMap.values());
+        Collections.sort(resultList, TimeHistogram.TIME_STAMP_ASC_COMPARATOR);
         return resultList;
     }
 

@@ -24,7 +24,7 @@ public class SocketState {
     private SocketStateCode beforeState = SocketStateCode.NONE;
     private SocketStateCode currentState = SocketStateCode.NONE;
 
-    public synchronized SocketStateChangeResult to(SocketStateCode nextState) {
+    public synchronized SocketStateChangeResult changeState(SocketStateCode nextState) {
         boolean enable = this.currentState.canChangeState(nextState);
         if (enable) {
             this.beforeState = this.currentState;
@@ -35,83 +35,79 @@ public class SocketState {
         return new SocketStateChangeResult(false, beforeState, currentState, nextState);
     }
 
-    public SocketStateChangeResult toBeingConnect() {
+    public SocketStateChangeResult stateToBeingConnect() {
         SocketStateCode nextState = SocketStateCode.BEING_CONNECT;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toConnected() {
+    public SocketStateChangeResult stateToConnected() {
         SocketStateCode nextState = SocketStateCode.CONNECTED;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toConnectFailed() {
+    public SocketStateChangeResult stateToConnectFailed() {
         SocketStateCode nextState = SocketStateCode.CONNECT_FAILED;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toIgnore() {
+    public SocketStateChangeResult stateToIgnore() {
         SocketStateCode nextState = SocketStateCode.IGNORE;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toRunWithoutHandshake() {
+    public SocketStateChangeResult stateToRunWithoutHandshake() {
         SocketStateCode nextState = SocketStateCode.RUN_WITHOUT_HANDSHAKE;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toRunSimplex() {
+    public SocketStateChangeResult stateToRunSimplex() {
         SocketStateCode nextState = SocketStateCode.RUN_SIMPLEX;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toRunDuplex() {
+    public SocketStateChangeResult stateToRunDuplex() {
         SocketStateCode nextState = SocketStateCode.RUN_DUPLEX;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toBeingCloseByClient() {
+    public SocketStateChangeResult stateToBeingCloseByClient() {
         SocketStateCode nextState = SocketStateCode.BEING_CLOSE_BY_CLIENT;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toClosedByClient() {
+    public SocketStateChangeResult stateToClosedByClient() {
         SocketStateCode nextState = SocketStateCode.CLOSED_BY_CLIENT;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toUnexpectedCloseByClient() {
+    public SocketStateChangeResult stateToUnexpectedCloseByClient() {
         SocketStateCode nextState = SocketStateCode.UNEXPECTED_CLOSE_BY_CLIENT;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toBeingCloseByServer() {
+    public SocketStateChangeResult stateToBeingCloseByServer() {
         SocketStateCode nextState = SocketStateCode.BEING_CLOSE_BY_SERVER;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toClosedByServer() {
+    public SocketStateChangeResult stateToClosedByServer() {
         SocketStateCode nextState = SocketStateCode.CLOSED_BY_SERVER;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toUnexpectedCloseByServer() {
+    public SocketStateChangeResult stateToUnexpectedCloseByServer() {
         SocketStateCode nextState = SocketStateCode.UNEXPECTED_CLOSE_BY_SERVER;
-        return to(nextState);
+        return changeState(nextState);
     }
 
-    public SocketStateChangeResult toUnknownError() {
-        SocketStateCode nextState = SocketStateCode.ERROR_UNKNOWN;
-        return to(nextState);
+    public SocketStateChangeResult stateToUnkownError() {
+        SocketStateCode nextState = SocketStateCode.ERROR_UNKOWN;
+        return changeState(nextState);
     }
     
-    public SocketStateChangeResult toSyncStateSessionError() {
+    public SocketStateChangeResult stateToSyncStateSessionError() {
         SocketStateCode nextState = SocketStateCode.ERROR_SYNC_STATE_SESSION;
-        return to(nextState);
-    }
-
-    public boolean checkState(SocketStateCode expectedState) {
-        return getCurrentState() == expectedState;
+        return changeState(nextState);
     }
 
     public synchronized SocketStateCode getCurrentState() {

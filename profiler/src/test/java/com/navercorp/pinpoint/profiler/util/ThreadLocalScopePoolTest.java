@@ -16,70 +16,69 @@
 
 package com.navercorp.pinpoint.profiler.util;
 
-import com.navercorp.pinpoint.bootstrap.instrument.DefaultInterceptorScopeDefinition;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.AttachmentFactory;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.ExecutionPolicy;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.InterceptorScopeInvocation;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+import org.junit.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import com.navercorp.pinpoint.bootstrap.instrument.AttachmentFactory;
+import com.navercorp.pinpoint.bootstrap.instrument.DefaultScopeDefinition;
+import com.navercorp.pinpoint.bootstrap.instrument.Scope;
+import com.navercorp.pinpoint.bootstrap.interceptor.group.ExecutionPoint;
 
 public class ThreadLocalScopePoolTest {
 
     @Test
-    public void testGetScope() {
+    public void testGetScope() throws Exception {
 
         ScopePool pool = new ThreadLocalScopePool();
-        InterceptorScopeInvocation scope = pool.getScope(new DefaultInterceptorScopeDefinition("test"));
-        assertThat(scope).isInstanceOf(ThreadLocalScope.class);
+        Scope scope = pool.getScope(new DefaultScopeDefinition("test"));
+        Assert.assertTrue(scope instanceof ThreadLocalScope);
 
-        Assertions.assertEquals(scope.getName(), "test", "name");
+        Assert.assertEquals("name", scope.getName(), "test");
     }
 
     @Test
-    public void testAttachment() {
+     public void testAttachment() throws Exception {
 
         ScopePool pool = new ThreadLocalScopePool();
-        InterceptorScopeInvocation scope = pool.getScope(new DefaultInterceptorScopeDefinition("test"));
+        Scope scope = pool.getScope(new DefaultScopeDefinition("test"));
 
-        scope.tryEnter(ExecutionPolicy.BOUNDARY);
-        scope.tryEnter(ExecutionPolicy.BOUNDARY);
-
-        Assertions.assertNull(scope.getAttachment());
+        scope.tryEnter(ExecutionPoint.BOUNDARY);
+        scope.entered(ExecutionPoint.BOUNDARY);
+        
+        scope.tryEnter(ExecutionPoint.BOUNDARY);
+        
+        Assert.assertNull(scope.getAttachment());
         scope.setAttachment("test");
-
-        scope.canLeave(ExecutionPolicy.BOUNDARY);
-        Assertions.assertEquals(scope.getAttachment(), "test");
-
-        Assertions.assertTrue(scope.canLeave(ExecutionPolicy.BOUNDARY));
-        scope.leave(ExecutionPolicy.BOUNDARY);
-
-        Assertions.assertEquals(scope.getName(), "test", "name");
+        
+        scope.tryLeave(ExecutionPoint.BOUNDARY);
+        Assert.assertEquals(scope.getAttachment(), "test");
+        Assert.assertTrue(scope.tryLeave(ExecutionPoint.BOUNDARY));
+        
+        Assert.assertEquals("name", scope.getName(), "test");
     }
 
 
     @Test
-    public void testGetOrCreate() {
+    public void testGetOrCreate() throws Exception {
         ScopePool pool = new ThreadLocalScopePool();
-        InterceptorScopeInvocation scope = pool.getScope(new DefaultInterceptorScopeDefinition("test"));
+        Scope scope= pool.getScope(new DefaultScopeDefinition("test"));
+        
+        scope.tryEnter(ExecutionPoint.BOUNDARY);
+        scope.entered(ExecutionPoint.BOUNDARY);
+        scope.tryEnter(ExecutionPoint.BOUNDARY);
 
-        scope.tryEnter(ExecutionPolicy.BOUNDARY);
-        scope.tryEnter(ExecutionPolicy.BOUNDARY);
-
-        Assertions.assertNull(scope.getAttachment());
-        Assertions.assertEquals(scope.getOrCreateAttachment(new AttachmentFactory() {
+        Assert.assertNull(scope.getAttachment());
+        Assert.assertEquals(scope.getOrCreateAttachment(new AttachmentFactory() {
             @Override
             public Object createAttachment() {
                 return "test";
-            }
+            };
         }), "test");
+        
+        scope.tryLeave(ExecutionPoint.BOUNDARY);
+        Assert.assertEquals(scope.getAttachment(), "test");
+        Assert.assertTrue(scope.tryLeave(ExecutionPoint.BOUNDARY));
 
-        scope.canLeave(ExecutionPolicy.BOUNDARY);
-        Assertions.assertEquals(scope.getAttachment(), "test");
-        Assertions.assertTrue(scope.canLeave(ExecutionPolicy.BOUNDARY));
-        scope.leave(ExecutionPolicy.BOUNDARY);
-
-        Assertions.assertEquals(scope.getName(), "test", "name");
+        Assert.assertEquals("name", scope.getName(), "test");
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2019 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,19 +16,17 @@
 
 package com.navercorp.pinpoint.collector.dao.hbase.statistics;
 
-import com.navercorp.pinpoint.common.server.util.ApplicationMapStatisticsUtils;
-
-import java.util.Objects;
+import com.navercorp.pinpoint.common.util.ApplicationMapStatisticsUtils;
 
 /**
  * @author emeroad
  */
 public class CallerColumnName implements ColumnName {
-    private final short callerServiceType;
-    private final String callerApplicationName;
+    private short callerServiceType;
+    private String callerApplicationName;
     // called or calling host
-    private final String callHost;
-    private final short columnSlotNumber;
+    private String callHost;
+    private short columnSlotNumber;
 
     // WARNING - cached hash value should not be included for equals/hashCode
     private int hash;
@@ -36,9 +34,15 @@ public class CallerColumnName implements ColumnName {
     private long callCount;
 
     public CallerColumnName(short callerServiceType, String callerApplicationName, String callHost, short columnSlotNumber) {
+        if (callerApplicationName == null) {
+            throw new NullPointerException("callerApplicationName must not be null");
+        }
+        if (callHost == null) {
+            throw new NullPointerException("callHost must not be null");
+        }
         this.callerServiceType = callerServiceType;
-        this.callerApplicationName = Objects.requireNonNull(callerApplicationName, "callerApplicationName");
-        this.callHost = Objects.requireNonNull(callHost, "callHost");
+        this.callerApplicationName = callerApplicationName;
+        this.callHost = callHost;
         this.columnSlotNumber = columnSlotNumber;
     }
 

@@ -15,21 +15,19 @@
  */
 package com.navercorp.pinpoint.plugin.httpclient4;
 
-import com.navercorp.pinpoint.common.trace.AnnotationKey;
-import com.navercorp.pinpoint.common.trace.AnnotationKeyMatchers;
-import com.navercorp.pinpoint.common.trace.TraceMetadataProvider;
-import com.navercorp.pinpoint.common.trace.TraceMetadataSetupContext;
+import com.navercorp.pinpoint.common.plugin.TypeProvider;
+import com.navercorp.pinpoint.common.plugin.TypeSetupContext;
 
 /**
  * 
  * @author jaehong.kim
  *
  */
-public class HttpClient4TypeProvider implements TraceMetadataProvider {
+public class HttpClient4TypeProvider implements TypeProvider, HttpClient4Constants{
 
     @Override
-    public void setup(TraceMetadataSetupContext context) {
-        context.addServiceType(HttpClient4Constants.HTTP_CLIENT_4, AnnotationKeyMatchers.exact(AnnotationKey.HTTP_URL));
-        context.addServiceType(HttpClient4Constants.HTTP_CLIENT_4_INTERNAL, AnnotationKeyMatchers.exact(AnnotationKey.HTTP_INTERNAL_DISPLAY));
+    public void setup(TypeSetupContext context) {
+        context.addType(HTTP_CLIENT4);
+        context.addType(HTTP_CLIENT4_INTERNAL);
     }
 }

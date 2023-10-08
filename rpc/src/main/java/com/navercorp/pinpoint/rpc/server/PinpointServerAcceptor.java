@@ -1,11 +1,11 @@
 /*
- * Copyright 2019 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,41 +16,7 @@
 
 package com.navercorp.pinpoint.rpc.server;
 
-import com.navercorp.pinpoint.common.annotations.VisibleForTesting;
-import com.navercorp.pinpoint.common.profiler.concurrent.PinpointThreadFactory;
-import java.util.Objects;
-import com.navercorp.pinpoint.common.util.CpuUtils;
-import com.navercorp.pinpoint.rpc.PinpointSocket;
-import com.navercorp.pinpoint.rpc.PinpointSocketException;
-import com.navercorp.pinpoint.rpc.PipelineFactory;
-import com.navercorp.pinpoint.rpc.cluster.ClusterOption;
-import com.navercorp.pinpoint.rpc.packet.ServerClosePacket;
-import com.navercorp.pinpoint.rpc.server.handler.ServerStateChangeEventHandler;
-import com.navercorp.pinpoint.rpc.stream.ServerStreamChannelMessageHandler;
-import com.navercorp.pinpoint.rpc.util.LoggerFactorySetup;
-import com.navercorp.pinpoint.rpc.util.TimerFactory;
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelHandler;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
-import org.jboss.netty.channel.group.ChannelGroup;
-import org.jboss.netty.channel.group.DefaultChannelGroup;
-import org.jboss.netty.channel.socket.nio.NioServerBossPool;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.channel.socket.nio.NioWorkerPool;
-import org.jboss.netty.util.ThreadNameDeterminer;
-import org.jboss.netty.util.Timer;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
-
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,85 +24,93 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.ChannelStateEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelHandler;
+import org.jboss.netty.channel.group.ChannelGroup;
+import org.jboss.netty.channel.group.ChannelGroupFuture;
+import org.jboss.netty.channel.group.ChannelGroupFutureListener;
+import org.jboss.netty.channel.group.DefaultChannelGroup;
+import org.jboss.netty.channel.socket.nio.NioServerBossPool;
+import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.channel.socket.nio.NioWorkerPool;
+import org.jboss.netty.util.ThreadNameDeterminer;
+import org.jboss.netty.util.Timeout;
+import org.jboss.netty.util.Timer;
+import org.jboss.netty.util.TimerTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.navercorp.pinpoint.common.util.PinpointThreadFactory;
+import com.navercorp.pinpoint.rpc.PinpointSocketException;
+import com.navercorp.pinpoint.rpc.client.WriteFailFutureListener;
+import com.navercorp.pinpoint.rpc.packet.PingPacket;
+import com.navercorp.pinpoint.rpc.packet.ServerClosePacket;
+import com.navercorp.pinpoint.rpc.server.handler.ChannelStateChangeEventHandler;
+import com.navercorp.pinpoint.rpc.server.handler.DoNothingChannelStateEventHandler;
+import com.navercorp.pinpoint.rpc.stream.DisabledServerStreamChannelMessageListener;
+import com.navercorp.pinpoint.rpc.stream.ServerStreamChannelMessageListener;
+import com.navercorp.pinpoint.rpc.util.AssertUtils;
+import com.navercorp.pinpoint.rpc.util.CpuUtils;
+import com.navercorp.pinpoint.rpc.util.LoggerFactorySetup;
+import com.navercorp.pinpoint.rpc.util.TimerFactory;
+
 /**
  * @author Taejin Koo
  */
 public class PinpointServerAcceptor implements PinpointServerConfig {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private static final int WORKER_COUNT = CpuUtils.cpuCount();
+    private static final long DEFAULT_TIMEOUTMILLIS = 3 * 1000;
+    private static final int WORKER_COUNT = CpuUtils.workerCount();
 
     private volatile boolean released;
 
     private ServerBootstrap bootstrap;
 
-    private final ChannelFilter channelConnectedFilter;
+    private InetAddress[] ignoreAddressList;
 
     private Channel serverChannel;
     private final ChannelGroup channelGroup = new DefaultChannelGroup("PinpointServerFactory");
 
     private final PinpointServerChannelHandler nettyChannelHandler = new PinpointServerChannelHandler();
 
-    private ServerMessageListenerFactory messageListenerFactory = new LoggingServerMessageListenerFactory();
-
-    private ServerStreamChannelMessageHandler serverStreamChannelMessageHandler = ServerStreamChannelMessageHandler.DISABLED_INSTANCE;
-    private final List<ServerStateChangeEventHandler> stateChangeEventHandler = new ArrayList<>();
+    private ServerMessageListener messageListener = SimpleLoggingServerMessageListener.LISTENER;
+    private ServerStreamChannelMessageListener serverStreamChannelMessageListener = DisabledServerStreamChannelMessageListener.INSTANCE;
+    private ChannelStateChangeEventHandler stateChangeEventHandler = DoNothingChannelStateEventHandler.INSTANCE;
 
     private final Timer healthCheckTimer;
-    private final HealthCheckManager healthCheckManager;
-
     private final Timer requestManagerTimer;
 
-    private final ServerOption serverOption;
-
-    private final PipelineFactory pipelineFactory;
+    private long defaultRequestTimeout = DEFAULT_TIMEOUTMILLIS;
 
     static {
         LoggerFactorySetup.setupSlf4jLoggerFactory();
     }
 
     public PinpointServerAcceptor() {
-        this(ServerOption.getDefaultServerOption(), ChannelFilter.BYPASS);
-    }
-
-    public PinpointServerAcceptor(ChannelFilter channelConnectedFilter) {
-        this(ServerOption.getDefaultServerOption(), channelConnectedFilter);
-    }
-
-    public PinpointServerAcceptor(ChannelFilter channelConnectedFilter, PipelineFactory pipelineFactory) {
-        this(ServerOption.getDefaultServerOption(), channelConnectedFilter, pipelineFactory);
-    }
-
-    public PinpointServerAcceptor(ServerOption serverOption, ChannelFilter channelConnectedFilter) {
-        this(serverOption, channelConnectedFilter, new ServerCodecPipelineFactory());
-    }
-
-    public PinpointServerAcceptor(ServerOption serverOption, ChannelFilter channelConnectedFilter, PipelineFactory pipelineFactory) {
         ServerBootstrap bootstrap = createBootStrap(1, WORKER_COUNT);
         setOptions(bootstrap);
+        addPipeline(bootstrap);
         this.bootstrap = bootstrap;
 
-        this.serverOption = Objects.requireNonNull(serverOption, "serverOption");
-        logger.info("serverOption : {}", serverOption);
-
         this.healthCheckTimer = TimerFactory.createHashedWheelTimer("PinpointServerSocket-HealthCheckTimer", 50, TimeUnit.MILLISECONDS, 512);
-        this.healthCheckManager = new HealthCheckManager(healthCheckTimer, serverOption.getHealthCheckPacketWaitTimeMillis(), channelGroup);
-
         this.requestManagerTimer = TimerFactory.createHashedWheelTimer("PinpointServerSocket-RequestManager", 50, TimeUnit.MILLISECONDS, 512);
-
-        this.channelConnectedFilter = Objects.requireNonNull(channelConnectedFilter, "channelConnectedFilter");
-
-        this.pipelineFactory = Objects.requireNonNull(pipelineFactory, "pipelineFactory");
-        addPipeline(bootstrap, pipelineFactory);
     }
 
     private ServerBootstrap createBootStrap(int bossCount, int workerCount) {
         // profiler, collector
-        ExecutorService boss = Executors.newCachedThreadPool(new PinpointThreadFactory("Pinpoint-Server-Boss", true));
+        ExecutorService boss = Executors.newCachedThreadPool(new PinpointThreadFactory("Pinpoint-Server-Boss"));
         NioServerBossPool nioServerBossPool = new NioServerBossPool(boss, bossCount, ThreadNameDeterminer.CURRENT);
 
-        ExecutorService worker = Executors.newCachedThreadPool(new PinpointThreadFactory("Pinpoint-Server-Worker", true));
+        ExecutorService worker = Executors.newCachedThreadPool(new PinpointThreadFactory("Pinpoint-Server-Worker"));
         NioWorkerPool nioWorkerPool = new NioWorkerPool(worker, workerCount, ThreadNameDeterminer.CURRENT);
 
         NioServerSocketChannelFactory nioClientSocketChannelFactory = new NioServerSocketChannelFactory(nioServerBossPool, nioWorkerPool);
@@ -158,52 +132,26 @@ public class PinpointServerAcceptor implements PinpointServerConfig {
         // bootstrap.setOption("child.soLinger", 0);
     }
 
-    private void addPipeline(ServerBootstrap bootstrap, final PipelineFactory pipelineFactory) {
-        bootstrap.setPipelineFactory(new ChannelPipelineFactory() {
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = pipelineFactory.newPipeline();
-                pipeline.addLast("handler", nettyChannelHandler);
-
-                return pipeline;
-            }
-        });
+    private void addPipeline(ServerBootstrap bootstrap) {
+        ServerPipelineFactory serverPipelineFactory = new ServerPipelineFactory(nettyChannelHandler);
+        bootstrap.setPipelineFactory(serverPipelineFactory);
     }
-
-    @VisibleForTesting
+    
     void setPipelineFactory(ChannelPipelineFactory channelPipelineFactory) {
-        Objects.requireNonNull(channelPipelineFactory, "channelPipelineFactory");
-
+        if (channelPipelineFactory == null) {
+            throw new NullPointerException("channelPipelineFactory must not be null");
+        }
         bootstrap.setPipelineFactory(channelPipelineFactory);
     }
 
-    @VisibleForTesting
-    public void setMessageHandler(final ChannelHandler messageHandler) {
-        Objects.requireNonNull(messageHandler, "messageHandler");
-        bootstrap.setPipelineFactory(new ChannelPipelineFactory() {
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = pipelineFactory.newPipeline();
-                pipeline.addLast("handler", messageHandler);
-
-                return pipeline;
-            }
-        });
-    }
-
     public void bind(String host, int port) throws PinpointSocketException {
-        InetSocketAddress bindAddress = new InetSocketAddress(host, port);
-        bind(bindAddress);
-    }
-
-    public void bind(InetSocketAddress bindAddress) throws PinpointSocketException {
         if (released) {
             return;
         }
 
-        logger.info("bind() {}", bindAddress);
-        this.serverChannel = bootstrap.bind(bindAddress);
-        healthCheckManager.start(serverOption.getHealthCheckIntervalTimeMillis());
+        InetSocketAddress address = new InetSocketAddress(host, port);
+        this.serverChannel = bootstrap.bind(address);
+        sendPing();
     }
 
     private DefaultPinpointServer createPinpointServer(Channel channel) {
@@ -213,36 +161,72 @@ public class PinpointServerAcceptor implements PinpointServerConfig {
 
     @Override
     public long getDefaultRequestTimeout() {
-        return serverOption.getRequestTimeoutMillis();
+        return defaultRequestTimeout;
+    }
+
+    public void setDefaultRequestTimeout(long defaultRequestTimeout) {
+        this.defaultRequestTimeout = defaultRequestTimeout;
+    }
+
+    private boolean isIgnoreAddress(Channel channel) {
+        if (ignoreAddressList == null) {
+            return false;
+        }
+        final InetSocketAddress remoteAddress = (InetSocketAddress) channel.getRemoteAddress();
+        if (remoteAddress == null) {
+            return false;
+        }
+        InetAddress address = remoteAddress.getAddress();
+        for (InetAddress ignore : ignoreAddressList) {
+            if (ignore.equals(address)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void setIgnoreAddressList(InetAddress[] ignoreAddressList) {
+        AssertUtils.assertNotNull(ignoreAddressList, "ignoreAddressList must not be null");
+
+        this.ignoreAddressList = ignoreAddressList;
     }
 
     @Override
     public ServerMessageListener getMessageListener() {
-        return messageListenerFactory.create();
+        return messageListener;
     }
 
-    public void setMessageListenerFactory(ServerMessageListenerFactory messageListenerFactory) {
-        this.messageListenerFactory = Objects.requireNonNull(messageListenerFactory, "messageListenerFactory");
+    public void setMessageListener(ServerMessageListener messageListener) {
+        AssertUtils.assertNotNull(messageListener, "messageListener must not be null");
+
+        this.messageListener = messageListener;
     }
 
     @Override
-    public List<ServerStateChangeEventHandler> getStateChangeEventHandlers() {
+    public ChannelStateChangeEventHandler getStateChangeEventHandler() {
         return stateChangeEventHandler;
     }
 
-    public void addStateChangeEventHandler(ServerStateChangeEventHandler stateChangeEventHandler) {
-        Objects.requireNonNull(stateChangeEventHandler, "stateChangeEventHandler");
+    public void setStateChangeEventHandler(ChannelStateChangeEventHandler stateChangeEventHandler) {
+        AssertUtils.assertNotNull(stateChangeEventHandler, "stateChangeEventHandler must not be null");
 
-        this.stateChangeEventHandler.add(stateChangeEventHandler);
+        this.stateChangeEventHandler = stateChangeEventHandler;
     }
 
     @Override
-    public ServerStreamChannelMessageHandler getServerStreamMessageHandler() {
-        return serverStreamChannelMessageHandler;
+    public ServerStreamChannelMessageListener getStreamMessageListener() {
+        return serverStreamChannelMessageListener;
     }
 
-    public void setServerStreamChannelMessageHandler(ServerStreamChannelMessageHandler serverStreamChannelMessageHandler) {
-        this.serverStreamChannelMessageHandler = Objects.requireNonNull(serverStreamChannelMessageHandler, "serverStreamChannelMessageHandler");
+    public void setServerStreamChannelMessageListener(ServerStreamChannelMessageListener serverStreamChannelMessageListener) {
+        AssertUtils.assertNotNull(serverStreamChannelMessageListener, "serverStreamChannelMessageListener must not be null");
+
+        this.serverStreamChannelMessageListener = serverStreamChannelMessageListener;
+    }
+
+    @Override
+    public Timer getHealthCheckTimer() {
+        return healthCheckTimer;
     }
 
     @Override
@@ -250,11 +234,48 @@ public class PinpointServerAcceptor implements PinpointServerConfig {
         return requestManagerTimer;
     }
 
-    @Override
-    public ClusterOption getClusterOption() {
-        return serverOption.getClusterOption();
+    private void sendPing() {
+        logger.debug("sendPing");
+        final TimerTask pintTask = new TimerTask() {
+            @Override
+            public void run(Timeout timeout) throws Exception {
+                if (timeout.isCancelled()) {
+                    newPingTimeout(this);
+                    return;
+                }
+
+                final ChannelGroupFuture write = channelGroup.write(PingPacket.PING_PACKET);
+                if (logger.isWarnEnabled()) {
+                    write.addListener(new ChannelGroupFutureListener() {
+                        private final ChannelFutureListener listener = new WriteFailFutureListener(logger, "ping write fail", "ping write success");
+
+                        @Override
+                        public void operationComplete(ChannelGroupFuture future) throws Exception {
+
+                            if (logger.isWarnEnabled()) {
+                                for (ChannelFuture channelFuture : future) {
+                                    channelFuture.addListener(listener);
+                                }
+                            }
+                        }
+                    });
+                }
+                newPingTimeout(this);
+            }
+        };
+        newPingTimeout(pintTask);
     }
 
+    private void newPingTimeout(TimerTask pintTask) {
+        try {
+            logger.debug("newPingTimeout");
+            healthCheckTimer.newTimeout(pintTask, 1000 * 60 * 5, TimeUnit.MILLISECONDS);
+        } catch (IllegalStateException e) {
+            // stop in case of timer stopped
+            logger.debug("timer stopped. Caused:{}", e.getMessage());
+        }
+    }
+    
     public void close() {
         synchronized (this) {
             if (released) {
@@ -262,14 +283,13 @@ public class PinpointServerAcceptor implements PinpointServerConfig {
             }
             released = true;
         }
-        healthCheckManager.stop();
         healthCheckTimer.stop();
         
         closePinpointServer();
 
         if (serverChannel != null) {
             ChannelFuture close = serverChannel.close();
-            close.awaitUninterruptibly(serverOption.getServerCloseWaitTimeoutMillis(), TimeUnit.MILLISECONDS);
+            close.awaitUninterruptibly(3000, TimeUnit.MILLISECONDS);
             serverChannel = null;
         }
         if (bootstrap != null) {
@@ -291,13 +311,15 @@ public class PinpointServerAcceptor implements PinpointServerConfig {
         }
     }
     
-    public List<PinpointSocket> getWritableSocketList() {
-        List<PinpointSocket> pinpointServerList = new ArrayList<>();
+    public List<PinpointServer> getWritableServerList() {
+        List<PinpointServer> pinpointServerList = new ArrayList<PinpointServer>();
 
         for (Channel channel : channelGroup) {
             DefaultPinpointServer pinpointServer = (DefaultPinpointServer) channel.getAttachment();
-            if (pinpointServer != null && pinpointServer.isEnableDuplexCommunication()) {
-                pinpointServerList.add(pinpointServer);
+            if (pinpointServer != null) {
+                if (pinpointServer.isEnableDuplexCommunication()) {
+                    pinpointServerList.add(pinpointServer);
+                }
             }
         }
 
@@ -308,6 +330,7 @@ public class PinpointServerAcceptor implements PinpointServerConfig {
         @Override
         public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
             final Channel channel = e.getChannel();
+            logger.info("channelConnected channel:{}", channel);
 
             if (released) {
                 logger.warn("already released. channel:{}", channel);
@@ -320,13 +343,11 @@ public class PinpointServerAcceptor implements PinpointServerConfig {
                 return;
             }
 
-            final boolean accept = channelConnectedFilter.accept(channel);
-            if (!accept) {
-                logger.debug("channelConnected() channel discard. {}", channel);
+            boolean isIgnore = isIgnoreAddress(channel);
+            if (isIgnore) {
+                logger.debug("channelConnected ignore address. channel:" + channel);
                 return;
             }
-
-            logger.info("channelConnected started. channel:{}", channel);
 
             DefaultPinpointServer pinpointServer = createPinpointServer(channel);
             
@@ -336,17 +357,6 @@ public class PinpointServerAcceptor implements PinpointServerConfig {
             pinpointServer.start();
 
             super.channelConnected(ctx, e);
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
-            Channel channel = e.getChannel();
-            final boolean accept = channelConnectedFilter.accept(channel);
-            if (!accept) {
-                return;
-            } else {
-                super.exceptionCaught(ctx, e);
-            }
         }
 
         @Override

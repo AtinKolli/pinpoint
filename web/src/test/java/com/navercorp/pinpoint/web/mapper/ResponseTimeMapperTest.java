@@ -16,23 +16,18 @@
 
 package com.navercorp.pinpoint.web.mapper;
 
+import com.navercorp.pinpoint.common.HistogramSlot;
+import com.navercorp.pinpoint.common.ServiceType;
 import com.navercorp.pinpoint.common.buffer.AutomaticBuffer;
 import com.navercorp.pinpoint.common.buffer.Buffer;
-import com.navercorp.pinpoint.common.trace.HistogramSlot;
-import com.navercorp.pinpoint.common.trace.ServiceType;
-import com.navercorp.pinpoint.loader.service.ServiceTypeRegistryService;
 import com.navercorp.pinpoint.web.applicationmap.histogram.Histogram;
+import com.navercorp.pinpoint.web.mapper.ResponseTimeMapper;
 import com.navercorp.pinpoint.web.vo.ResponseTime;
-import com.sematext.hbase.wd.RowKeyDistributorByHashPrefix;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
+import org.junit.Assert;
+
+import org.apache.hadoop.hbase.util.Bytes;
+import org.junit.Test;
 
 /**
  * @author emeroad
@@ -40,26 +35,25 @@ import static org.mockito.Mockito.mock;
 public class ResponseTimeMapperTest {
 
     @Test
-    public void testResponseTimeMapperTest() {
+    public void testResponseTimeMapperTest() throws Exception {
+        ResponseTimeMapper responseTimeMapper = new ResponseTimeMapper();
+        ResponseTime responseTime = new ResponseTime("applicationName", ServiceType.STAND_ALONE, System.currentTimeMillis());
 
         Buffer buffer = new AutomaticBuffer();
-        HistogramSlot histogramSlot = ServiceType.STAND_ALONE.getHistogramSchema().findHistogramSlot(1000, false);
+        HistogramSlot histogramSlot = ServiceType.STAND_ALONE.getHistogramSchema().findHistogramSlot(1000);
         short histogramSlotTime = histogramSlot.getSlotTime();
-        buffer.putShort(histogramSlotTime);
-        buffer.putBytes(Bytes.toBytes("agent"));
-        byte[] bufferArray = buffer.getBuffer();
-        byte[] valueArray = Bytes.toBytes(1L);
+        buffer.put(histogramSlotTime);
+        buffer.put(Bytes.toBytes("agent"));
 
-        Cell mockCell = CellUtil.createCell(HConstants.EMPTY_BYTE_ARRAY, HConstants.EMPTY_BYTE_ARRAY, bufferArray, HConstants.LATEST_TIMESTAMP, KeyValue.Type.Maximum.getCode(), valueArray);
-
-        ResponseTimeMapper responseTimeMapper = new ResponseTimeMapper(mock(ServiceTypeRegistryService.class), mock(RowKeyDistributorByHashPrefix.class));
-        ResponseTime responseTime = new ResponseTime("applicationName", ServiceType.STAND_ALONE, System.currentTimeMillis());
-        responseTimeMapper.recordColumn(responseTime, mockCell);
+        responseTimeMapper.recordColumn(responseTime, buffer.getBuffer(), Bytes.toBytes(1L), 0);
 
         Histogram agentHistogram = responseTime.findHistogram("agent");
+        long fastCount = agentHistogram.getFastCount();
+        Assert.assertEquals(fastCount, 1);
+        long normal = agentHistogram.getNormalCount();
+        Assert.assertEquals(normal, 0);
+        long slow = agentHistogram.getSlowCount();
+        Assert.assertEquals(slow, 0);
 
-        assertThat(agentHistogram)
-                .extracting(Histogram::getFastCount, Histogram::getNormalCount, Histogram::getSlowCount)
-                .containsExactly(1L, 0L, 0L);
     }
 }

@@ -16,12 +16,8 @@
 
 package com.navercorp.pinpoint.collector.util;
 
-import com.navercorp.pinpoint.common.PinpointConstants;
-import com.navercorp.pinpoint.common.util.IdValidateUtils;
-import com.navercorp.pinpoint.common.util.StringUtils;
+import java.lang.management.ManagementFactory;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 /**
  * @author koo.taejin
  */
@@ -31,43 +27,10 @@ public final class CollectorUtils {
     }
 
     public static String getServerIdentifier() {
-        String hostName = getHostName();
-        long pid = ProcessHandle.current().pid();
-        return pid + "@" + hostName;
+
+        // if the return value is not unique, it will be changed to MAC address or IP address.
+        // It means that the return value has format of "pid@hostname" (it is possible to be duplicate for "localhost")
+        return ManagementFactory.getRuntimeMXBean().getName();
     }
 
-    private static String getHostName() {
-        try {
-            return InetAddress.getLocalHost().getHostName();
-        } catch (UnknownHostException e) {
-            return "localhost";
-        }
-    }
-
-    public static String getHumanFriendlyServerIdentifier() {
-        String hostName = getHostName();
-        long pid = ProcessHandle.current().pid();
-        return hostName + "@" + pid;
-    }
-
-    public static void checkAgentId(final String agentId) {
-        if (!IdValidateUtils.validateId(agentId)) {
-            throw new IllegalArgumentException("invalid agentId. agentId=" + agentId);
-        }
-    }
-
-    public static void checkApplicationName(final String applicationName) {
-        if (!IdValidateUtils.validateId(applicationName)) {
-            throw new IllegalArgumentException("invalid applicationName. applicationName=" + applicationName);
-        }
-    }
-
-    public static void checkAgentName(final String agentName) {
-        if (StringUtils.isEmpty(agentName)) {
-            return;
-        }
-        if (!IdValidateUtils.validateId(agentName, PinpointConstants.AGENT_NAME_MAX_LEN)) {
-            throw new IllegalArgumentException("invalid agentName. agentName=" + agentName);
-        }
-    }
 }

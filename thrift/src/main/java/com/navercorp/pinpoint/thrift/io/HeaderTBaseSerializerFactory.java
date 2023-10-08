@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,65 +16,87 @@
 
 package com.navercorp.pinpoint.thrift.io;
 
-import com.navercorp.pinpoint.io.util.TypeLocator;
-import org.apache.thrift.TBase;
-import org.apache.thrift.TByteArrayOutputStream;
-import org.apache.thrift.transport.TTransportException;
+import org.apache.thrift.protocol.TCompactProtocol;
+import org.apache.thrift.protocol.TProtocolFactory;
 
 import java.io.ByteArrayOutputStream;
-import java.util.Objects;
 
 /**
  * @author koo.taejin
  */
 public final class HeaderTBaseSerializerFactory implements SerializerFactory<HeaderTBaseSerializer> {
 
-    public static final int DEFAULT_STREAM_SIZE = 1024 * 16;
+    private static final boolean DEFAULT_SAFE_GURANTEED = true;
 
-    public static final TypeLocator<TBase<?, ?>> DEFAULT_TBASE_LOCATOR = DefaultTBaseLocator.getTypeLocator();
+    public static final int DEFAULT_STREAM_SIZE = 1024 * 8;
+    public static final int DEFAULT_UDP_STREAM_MAX_SIZE = 1024 * 64;
+    private static final boolean DEFAULT_AUTO_EXPAND = true;
+
+    private static final TBaseLocator DEFAULT_TBASE_LOCATOR = new DefaultTBaseLocator();
+    private static final TProtocolFactory DEFAULT_PROTOCOL_FACTORY = new TCompactProtocol.Factory();
 
     public static final HeaderTBaseSerializerFactory DEFAULT_FACTORY = new HeaderTBaseSerializerFactory();
 
+    private final boolean safetyGuranteed;
     private final int outputStreamSize;
-    private final TypeLocator<TBase<?, ?>> locator;
+    private final boolean autoExpand;
+    private final TProtocolFactory protocolFactory;
+    private final TBaseLocator locator;
 
     public HeaderTBaseSerializerFactory() {
-        this(HeaderTBaseSerializerFactory.DEFAULT_STREAM_SIZE, DEFAULT_TBASE_LOCATOR);
+        this(DEFAULT_SAFE_GURANTEED);
     }
 
-    public HeaderTBaseSerializerFactory(int outputStreamSize) {
-        this(outputStreamSize, DEFAULT_TBASE_LOCATOR);
+    public HeaderTBaseSerializerFactory(boolean safetyGuranteed) {
+        this(safetyGuranteed, DEFAULT_STREAM_SIZE);
     }
 
-    public HeaderTBaseSerializerFactory(TypeLocator<TBase<?, ?>> locator) {
-        this(HeaderTBaseSerializerFactory.DEFAULT_STREAM_SIZE, locator);
+    public HeaderTBaseSerializerFactory(boolean safetyGuranteed, int outputStreamSize) {
+        this(safetyGuranteed, outputStreamSize, DEFAULT_AUTO_EXPAND);
     }
-
-    public HeaderTBaseSerializerFactory(int outputStreamSize,
-                                        TypeLocator<TBase<?, ?>> locator) {
+    
+    public HeaderTBaseSerializerFactory(boolean safetyGuranteed, int outputStreamSize, boolean autoExpand) {
+        this(safetyGuranteed, outputStreamSize, autoExpand, DEFAULT_PROTOCOL_FACTORY, DEFAULT_TBASE_LOCATOR);
+    }
+    
+    public HeaderTBaseSerializerFactory(boolean safetyGuranteed, int outputStreamSize, TProtocolFactory protocolFactory, TBaseLocator locator) {
+        this(safetyGuranteed, outputStreamSize, DEFAULT_AUTO_EXPAND, DEFAULT_PROTOCOL_FACTORY, DEFAULT_TBASE_LOCATOR);
+    }
+    
+    public HeaderTBaseSerializerFactory(boolean safetyGuranteed, int outputStreamSize, boolean autoExpand, TProtocolFactory protocolFactory, TBaseLocator locator) {
+        this.safetyGuranteed = safetyGuranteed;
         this.outputStreamSize = outputStreamSize;
-        this.locator = Objects.requireNonNull(locator, "locator");
+        this.autoExpand = autoExpand;
+        this.protocolFactory = protocolFactory;
+        this.locator = locator;
+    }
+
+    public boolean isSafetyGuranteed() {
+        return safetyGuranteed;
+    }
+
+    public int getOutputStreamSize() {
+        return outputStreamSize;
+    }
+
+    public TProtocolFactory getProtocolFactory() {
+        return protocolFactory;
+    }
+
+    public TBaseLocator getLocator() {
+        return locator;
     }
 
     @Override
     public HeaderTBaseSerializer createSerializer() {
-        try {
-            ByteArrayOutputStream baos = new TByteArrayOutputStream(this.outputStreamSize);
-            // TODO long stringLengthLimit, long containerLengthLimit
-            return new HeaderTBaseSerializer(baos, ProtocolFactory.getFactory(), locator);
-        } catch (TTransportException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-
-    @Override
-    public boolean isSupport(Object target) {
-        if (target instanceof TBase<?, ?>) {
-            return locator.isSupport((Class<? extends TBase<?, ?>>) target.getClass());
+        ByteArrayOutputStream baos = null;
+        if (safetyGuranteed) {
+            baos = new PinpointByteArrayOutputStream(outputStreamSize, autoExpand);
+        } else {
+            baos = new UnsafeByteArrayOutputStream(outputStreamSize, autoExpand);
         }
 
-        return false;
+        return new HeaderTBaseSerializer(baos, protocolFactory, locator);
     }
 
 }

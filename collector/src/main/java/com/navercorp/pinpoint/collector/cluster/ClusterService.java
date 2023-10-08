@@ -22,9 +22,9 @@ package com.navercorp.pinpoint.collector.cluster;
  */
 public interface ClusterService {
 
-    void setup();
+    void setUp() throws Exception;
 
-    void tearDown();
+    void tearDown() throws Exception;
 
-    ProfilerClusterManager getProfilerClusterManager();
+    boolean isEnable();
 }

@@ -16,13 +16,16 @@
 
 package com.navercorp.pinpoint.common.util;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+
+import org.junit.Test;
+
+import com.navercorp.pinpoint.common.util.PropertyUtils;
 
 import java.net.URL;
 import java.util.Properties;
 
-public class PropertyUtilsTest {
+public class PropertyUtilsTest  {
 
     @Test
     public void testLoadProperty() throws Exception {
@@ -41,6 +44,6 @@ public class PropertyUtilsTest {
 
     private void assertProperty(Properties properties) {
         String test = properties.getProperty("test");
-        Assertions.assertEquals("pinpoint", test);
+        Assert.assertEquals("pinpoint", test);
     }
 }

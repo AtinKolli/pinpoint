@@ -16,32 +16,13 @@
 
 package com.navercorp.pinpoint.web.service;
 
-import com.navercorp.pinpoint.web.vo.Application;
-
-import java.util.List;
-import java.util.Map;
-
 /**
+ * 
  * @author netspider
- * @author HyunGil Jeong
+ * 
  */
 public interface AdminService {
-
-    int MIN_DURATION_DAYS_FOR_INACTIVITY = 30;
-    String MIN_DURATION_DAYS_FOR_INACTIVITY_STR = "" + MIN_DURATION_DAYS_FOR_INACTIVITY;
-
     void removeApplicationName(String applicationName);
 
     void removeAgentId(String applicationName, String agentId);
-
-    void removeInactiveAgents(int durationDays);
-
-    int removeInactiveAgentInApplication(String applicationName, int durationDays);
-
-    Map<String, List<Application>> getAgentIdMap();
-
-    Map<String, List<Application>> getDuplicateAgentIdMap();
-
-    Map<String, List<Application>> getInactiveAgents(String applicationName, int durationDays);
-
 }

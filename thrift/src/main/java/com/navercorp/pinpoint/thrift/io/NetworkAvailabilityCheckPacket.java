@@ -16,10 +16,12 @@
 
 package com.navercorp.pinpoint.thrift.io;
 
-import com.navercorp.pinpoint.common.util.BytesUtils;
+import org.apache.thrift.TBase;
 import org.apache.thrift.TException;
 import org.apache.thrift.TFieldIdEnum;
 import org.apache.thrift.protocol.TProtocol;
+
+import java.io.UnsupportedEncodingException;
 
 /**
  * @author netspider
@@ -28,7 +30,18 @@ public class NetworkAvailabilityCheckPacket implements org.apache.thrift.TBase<N
 
     private static final long serialVersionUID = -1170704876834222604L;
 
-    public static final byte[] DATA_OK = BytesUtils.toBytes("OK");
+    public transient static final byte[] DATA_OK = getBytes("OK");
+
+    private static byte[] getBytes(String str) {
+        if (str == null) {
+            throw new NullPointerException("str must not be null");
+        }
+        try {
+            return str.getBytes("UTF8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException("encoding error. Caused:" + e.getMessage(), e);
+        }
+    }
 
     @Override
     public void read(TProtocol tProtocol) throws TException {
@@ -58,7 +71,7 @@ public class NetworkAvailabilityCheckPacket implements org.apache.thrift.TBase<N
     }
 
     @Override
-    public NetworkAvailabilityCheckPacket deepCopy() {
+    public TBase deepCopy() {
         return null;
     }
 

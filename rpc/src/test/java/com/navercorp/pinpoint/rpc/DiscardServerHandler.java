@@ -17,46 +17,43 @@
 package com.navercorp.pinpoint.rpc;
 
 
+import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.*;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author emeroad
  */
 public class DiscardServerHandler extends SimpleChannelUpstreamHandler {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private int messageReceivedCount = 0;
+    private long transferredBytes;
 
-    @Override
-    public void handleUpstream(ChannelHandlerContext ctx, ChannelEvent event) throws Exception {
-        if (event instanceof ChannelStateEvent) {
-            logger.debug("event:{}", event);
-        } else if (event instanceof MessageEvent) {
-            messageReceived(ctx, (MessageEvent) event);
-        }
+    public long getTransferredBytes() {
+        return transferredBytes;
     }
 
     @Override
-    public void messageReceived(ChannelHandlerContext ctx, MessageEvent event) {
-        messageReceivedCount++;
-
-        try {
-            logger.debug("messageReceived. meg:{} channel:{}", event.getMessage(), event.getChannel());
-        } catch (Exception e) {
-            logger.warn("catch exception. message:{}", e.getMessage(), e);
+    public void handleUpstream(ChannelHandlerContext ctx, ChannelEvent e) throws Exception {
+        if (e instanceof ChannelStateEvent) {
+            logger.info("event:{}", e);
         }
+
+    }
+
+    @Override
+    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
+
+        transferredBytes += ((ChannelBuffer) e.getMessage()).readableBytes();
+        logger.info("messageReceived. meg:{} channel:{}", e.getMessage(), e.getChannel());
+        logger.info("transferredBytes. transferredBytes:{}", transferredBytes);
+
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
         logger.warn("Unexpected exception from downstream. Caused:{}", e, e.getCause());
     }
-
-    public int getMessageReceivedCount() {
-        return messageReceivedCount;
-    }
-
 }

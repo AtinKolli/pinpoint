@@ -16,10 +16,11 @@
 
 package com.navercorp.pinpoint.common.util;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
 
-import java.nio.charset.StandardCharsets;
+import org.junit.Test;
+
+import com.navercorp.pinpoint.common.util.HttpUtils;
 
 public class HttpUtilsTest {
     @Test
@@ -27,7 +28,7 @@ public class HttpUtilsTest {
         String test = "text/plain; charset=UTF-8";
 
         String charset = HttpUtils.parseContentTypeCharset(test);
-        Assertions.assertEquals(StandardCharsets.UTF_8.name(), charset);
+        Assert.assertEquals("UTF-8", charset);
     }
 
     @Test
@@ -35,7 +36,7 @@ public class HttpUtilsTest {
         String test = "text/plain; charset=UTF-8;";
 
         String charset = HttpUtils.parseContentTypeCharset(test);
-        Assertions.assertEquals(StandardCharsets.UTF_8.name(), charset);
+        Assert.assertEquals("UTF-8", charset);
     }
 
     @Test
@@ -43,7 +44,7 @@ public class HttpUtilsTest {
         String test = "text/plain; charset=UTF-8; test=a";
 
         String charset = HttpUtils.parseContentTypeCharset(test);
-        Assertions.assertEquals(StandardCharsets.UTF_8.name(), charset);
+        Assert.assertEquals("UTF-8", charset);
     }
 
     @Test
@@ -51,7 +52,7 @@ public class HttpUtilsTest {
         String test = "text/plain; charset= UTF-8 ; test=a";
 
         String charset = HttpUtils.parseContentTypeCharset(test);
-        Assertions.assertEquals(StandardCharsets.UTF_8.name(), charset);
+        Assert.assertEquals("UTF-8", charset);
     }
 
 }

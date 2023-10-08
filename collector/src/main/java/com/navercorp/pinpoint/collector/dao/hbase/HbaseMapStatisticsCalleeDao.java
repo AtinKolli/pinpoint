@@ -1,11 +1,11 @@
 /*
- * Copyright 2019 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,63 +16,73 @@
 
 package com.navercorp.pinpoint.collector.dao.hbase;
 
+import static com.navercorp.pinpoint.common.hbase.HBaseTables.*;
+
 import com.navercorp.pinpoint.collector.dao.MapStatisticsCalleeDao;
-import com.navercorp.pinpoint.collector.dao.hbase.statistics.BulkWriter;
-import com.navercorp.pinpoint.collector.dao.hbase.statistics.CallRowKey;
-import com.navercorp.pinpoint.collector.dao.hbase.statistics.CallerColumnName;
-import com.navercorp.pinpoint.collector.dao.hbase.statistics.ColumnName;
-import com.navercorp.pinpoint.collector.dao.hbase.statistics.MapLinkConfiguration;
-import com.navercorp.pinpoint.collector.dao.hbase.statistics.RowKey;
-import com.navercorp.pinpoint.common.server.util.AcceptedTimeService;
-import com.navercorp.pinpoint.common.server.util.ApplicationMapStatisticsUtils;
-import com.navercorp.pinpoint.common.server.util.TimeSlot;
-import com.navercorp.pinpoint.common.trace.HistogramSchema;
-import com.navercorp.pinpoint.common.trace.ServiceType;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.navercorp.pinpoint.collector.dao.hbase.statistics.*;
+import com.navercorp.pinpoint.collector.util.AcceptedTimeService;
+import com.navercorp.pinpoint.collector.util.ConcurrentCounterMap;
+import com.navercorp.pinpoint.common.ServiceType;
+import com.navercorp.pinpoint.common.hbase.HbaseOperations2;
+import com.navercorp.pinpoint.common.util.ApplicationMapStatisticsUtils;
+import com.navercorp.pinpoint.common.util.TimeSlot;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.hadoop.hbase.client.Increment;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
 
-import java.util.Objects;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Update statistics of callee node
- *
+ * 
  * @author netspider
  * @author emeroad
- * @author HyunGil Jeong
  */
 @Repository
 public class HbaseMapStatisticsCalleeDao implements MapStatisticsCalleeDao {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final AcceptedTimeService acceptedTimeService;
+    @Autowired
+    private HbaseOperations2 hbaseTemplate;
 
-    private final TimeSlot timeSlot;
+    @Autowired
+    private AcceptedTimeService acceptedTimeService;
 
-    private final IgnoreStatFilter ignoreStatFilter;
-    private final BulkWriter bulkWriter;
-    private final MapLinkConfiguration mapLinkConfiguration;
+    @Autowired
+    private TimeSlot timeSlot;
 
-    public HbaseMapStatisticsCalleeDao(MapLinkConfiguration mapLinkConfiguration,
-                                       IgnoreStatFilter ignoreStatFilter,
-                                       AcceptedTimeService acceptedTimeService, TimeSlot timeSlot,
-                                       @Qualifier("calleeBulkWriter") BulkWriter bulkWriter) {
-        this.mapLinkConfiguration = Objects.requireNonNull(mapLinkConfiguration, "mapLinkConfiguration");
-        this.ignoreStatFilter = Objects.requireNonNull(ignoreStatFilter, "ignoreStatFilter");
-        this.acceptedTimeService = Objects.requireNonNull(acceptedTimeService, "acceptedTimeService");
-        this.timeSlot = Objects.requireNonNull(timeSlot, "timeSlot");
+    @Autowired
+    @Qualifier("calleeMerge")
+    private RowKeyMerge rowKeyMerge;
 
-        this.bulkWriter = Objects.requireNonNull(bulkWriter, "bulkWriter");
+    private final boolean useBulk;
+
+    private final ConcurrentCounterMap<RowInfo> counter = new ConcurrentCounterMap<RowInfo>();
+
+    public HbaseMapStatisticsCalleeDao() {
+        this(true);
+    }
+
+    public HbaseMapStatisticsCalleeDao(boolean useBulk) {
+        this.useBulk = useBulk;
     }
 
 
     @Override
     public void update(String calleeApplicationName, ServiceType calleeServiceType, String callerApplicationName, ServiceType callerServiceType, String callerHost, int elapsed, boolean isError) {
-        Objects.requireNonNull(calleeApplicationName, "calleeApplicationName");
-        Objects.requireNonNull(callerApplicationName, "callerApplicationName");
+        if (callerApplicationName == null) {
+            throw new NullPointerException("callerApplicationName must not be null");
+        }
+        if (calleeApplicationName == null) {
+            throw new NullPointerException("calleeApplicationName must not be null");
+        }
 
         if (logger.isDebugEnabled()) {
             logger.debug("[Callee] {} ({}) <- {} ({})[{}]",
@@ -82,12 +92,6 @@ public class HbaseMapStatisticsCalleeDao implements MapStatisticsCalleeDao {
         // there may be no endpoint in case of httpclient
         callerHost = StringUtils.defaultString(callerHost);
 
-        // TODO callee, caller parameter normalization
-        if (ignoreStatFilter.filter(calleeServiceType, callerHost)) {
-            logger.debug("[Ignore-Callee] {} ({}) <- {} ({})[{}]",
-                    calleeApplicationName, calleeServiceType, callerApplicationName, callerServiceType, callerHost);
-            return;
-        }
 
         // make row key. rowkey is me
         final long acceptedTime = acceptedTimeService.getAcceptedTime();
@@ -95,31 +99,46 @@ public class HbaseMapStatisticsCalleeDao implements MapStatisticsCalleeDao {
         final RowKey calleeRowKey = new CallRowKey(calleeApplicationName, calleeServiceType.getCode(), rowTimeSlot);
 
         final short callerSlotNumber = ApplicationMapStatisticsUtils.getSlotNumber(calleeServiceType, elapsed, isError);
-
-        HistogramSchema histogramSchema = calleeServiceType.getHistogramSchema();
-
         final ColumnName callerColumnName = new CallerColumnName(callerServiceType.getCode(), callerApplicationName, callerHost, callerSlotNumber);
-        this.bulkWriter.increment(calleeRowKey, callerColumnName);
 
-        if (mapLinkConfiguration.isEnableAvg()) {
-            final ColumnName sumColumnName = new CallerColumnName(callerServiceType.getCode(), callerApplicationName, callerHost, histogramSchema.getSumStatSlot().getSlotTime());
-            this.bulkWriter.increment(calleeRowKey, sumColumnName, elapsed);
-        }
-        if (mapLinkConfiguration.isEnableMax()) {
-            final ColumnName maxColumnName = new CallerColumnName(callerServiceType.getCode(), callerApplicationName, callerHost, histogramSchema.getMaxStatSlot().getSlotTime());
-            this.bulkWriter.updateMax(calleeRowKey, maxColumnName, elapsed);
+        if (useBulk) {
+            RowInfo rowInfo = new DefaultRowInfo(calleeRowKey, callerColumnName);
+            counter.increment(rowInfo, 1L);
+        } else {
+            final byte[] rowKey = calleeRowKey.getRowKey();
+
+            // column name is the name of caller app.
+            byte[] columnName = callerColumnName.getColumnName();
+            increment(rowKey, columnName, 1L);
         }
     }
 
+
+
+    private void increment(byte[] rowKey, byte[] columnName, long increment) {
+        if (rowKey == null) {
+            throw new NullPointerException("rowKey must not be null");
+        }
+        if (columnName == null) {
+            throw new NullPointerException("columnName must not be null");
+        }
+        hbaseTemplate.incrementColumnValue(MAP_STATISTICS_CALLER, rowKey, MAP_STATISTICS_CALLER_CF_COUNTER, columnName, increment);
+    }
 
     @Override
-    public void flushLink() {
-        this.bulkWriter.flushLink();
-    }
+    public void flushAll() {
+        if (!useBulk) {
+            throw new IllegalStateException();
+        }
 
-    @Override
-    public void flushAvgMax() {
-        this.bulkWriter.flushAvgMax();
-    }
+        Map<RowInfo, ConcurrentCounterMap.LongAdder> remove = this.counter.remove();
+        List<Increment> merge = rowKeyMerge.createBulkIncrement(remove);
+        if (!merge.isEmpty()) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("flush {} Increment:{}", this.getClass().getSimpleName(), merge.size());
+            }
+            hbaseTemplate.increment(MAP_STATISTICS_CALLER, merge);
+        }
 
+    }
 }

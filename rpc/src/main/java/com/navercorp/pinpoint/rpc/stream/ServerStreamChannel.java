@@ -16,109 +16,40 @@
 
 package com.navercorp.pinpoint.rpc.stream;
 
-import java.util.Objects;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamClosePacket;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamCode;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamCreatePacket;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamCreateSuccessPacket;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamPacket;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamPingPacket;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamPongPacket;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamResponsePacket;
-
 import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
 
-import java.net.SocketAddress;
+import com.navercorp.pinpoint.rpc.packet.stream.StreamCreateSuccessPacket;
+import com.navercorp.pinpoint.rpc.packet.stream.StreamResponsePacket;
 
 /**
  * @author koo.taejin
  */
-public class ServerStreamChannel extends AbstractStreamChannel {
+public class ServerStreamChannel extends StreamChannel {
 
-    private final Channel channel;
-    private final ServerStreamChannelMessageHandler streamChannelMessageHandler;
-    private StreamChannelStateChangeEventHandler stateChangeEventHandler = new LoggingStreamChannelStateChangeEventHandler();
-
-    public ServerStreamChannel(Channel channel, int streamId, StreamChannelRepository streamChannelRepository, ServerStreamChannelMessageHandler streamChannelMessageHandler) {
-        super(streamId, streamChannelRepository);
-        this.channel = Objects.requireNonNull(channel, "channel");
-        this.streamChannelMessageHandler = Objects.requireNonNull(streamChannelMessageHandler, "streamChannelMessageHandler");
+    public ServerStreamChannel(Channel channel, int streamId, StreamChannelManager streamChannelManager) {
+        super(channel, streamId, streamChannelManager);
     }
 
-    @Override
-    public SocketAddress getRemoteAddress() {
-        return channel.getRemoteAddress();
+    public ChannelFuture sendData(byte[] payload) {
+        assertState(StreamChannelStateCode.RUN);
+
+        StreamResponsePacket dataPacket = new StreamResponsePacket(getStreamId(), payload);
+        return this.getChannel().write(dataPacket);
     }
 
-    @Override
-    public void sendPing(int requestId) {
-        StreamPingPacket packet = new StreamPingPacket(getStreamId(), requestId);
-        write(StreamChannelStateCode.CONNECTED, packet);
-    }
+    public ChannelFuture sendCreateSuccess() {
+        assertState(StreamChannelStateCode.RUN);
 
-    @Override
-    public void sendPong(int requestId) {
-        StreamPongPacket packet = new StreamPongPacket(getStreamId(), requestId);
-        write(StreamChannelStateCode.CONNECTED, packet);
-    }
-
-    @Override
-    public void close(StreamCode code) {
-        clearStreamChannelResource();
-        if (!StreamCode.isConnectionError(code)) {
-            try {
-                StreamClosePacket packet = new StreamClosePacket(getStreamId(), code);
-                write(packet);
-            } catch (Exception ignored) {
-                // do nothing
-            }
-        }
-    }
-
-    private void write(StreamPacket packet) {
-        write(null, packet);
-    }
-
-    private void write(StreamChannelStateCode expectedCode, StreamPacket packet) {
-        if (expectedCode != null) {
-            state.assertState(expectedCode);
-        }
-        channel.write(packet);
-    }
-
-    public void setStateChangeEventHandler(StreamChannelStateChangeEventHandler stateChangeEventHandler) {
-        this.stateChangeEventHandler = Objects.requireNonNull(stateChangeEventHandler, "stateChangeEventHandler");
-    }
-
-    public void sendData(byte[] payload) {
-        StreamResponsePacket packet = new StreamResponsePacket(getStreamId(), payload);
-        write(StreamChannelStateCode.CONNECTED, packet);
-    }
-
-    public void sendCreateSuccess() {
         StreamCreateSuccessPacket packet = new StreamCreateSuccessPacket(getStreamId());
-        write(StreamChannelStateCode.CONNECTED, packet);
+        return this.getChannel().write(packet);
     }
 
-    public void handleStreamCreatePacket(StreamCreatePacket packet) throws StreamException {
-        changeStateTo(StreamChannelStateCode.CONNECT_ARRIVED, true);
-        StreamCode result = streamChannelMessageHandler.handleStreamCreatePacket(this, packet);
-        if (result != StreamCode.OK) {
-            throw new StreamException(result);
-        }
-        changeStateConnected();
-        sendCreateSuccess();
-    }
+    boolean changeStateOpenArrived() {
+        boolean result = getState().changeStateOpenArrived();
 
-    @Override
-    public void handleStreamClosePacket(StreamClosePacket packet) {
-        streamChannelMessageHandler.handleStreamClosePacket(this, packet);
-        disconnect(packet.getCode());
-    }
-
-    @Override
-    public StreamChannelStateChangeEventHandler getStateChangeEventHandler() {
-        return stateChangeEventHandler;
+        logger.info(makeStateChangeMessage(StreamChannelStateCode.OPEN_ARRIVED, result));
+        return result;
     }
 
 }

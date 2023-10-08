@@ -22,12 +22,6 @@ import com.navercorp.pinpoint.bootstrap.sampler.Sampler;
  * @author emeroad
  */
 public class FalseSampler implements Sampler {
-
-    public static final Sampler INSTANCE = new FalseSampler();
-
-    private FalseSampler() {
-    }
-
     @Override
     public boolean isSampling() {
         return false;

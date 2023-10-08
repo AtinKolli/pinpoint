@@ -16,12 +16,12 @@
 
 package com.navercorp.pinpoint.profiler.util;
 
-import com.navercorp.pinpoint.bootstrap.instrument.InterceptorScopeDefinition;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.InterceptorScopeInvocation;
+import com.navercorp.pinpoint.bootstrap.instrument.Scope;
+import com.navercorp.pinpoint.bootstrap.instrument.ScopeDefinition;
 
 /**
  * @author emeroad
  */
 public interface ScopePool {
-    InterceptorScopeInvocation getScope(InterceptorScopeDefinition scopeDefinition);
+    Scope getScope(ScopeDefinition scopeDefinition);
 }

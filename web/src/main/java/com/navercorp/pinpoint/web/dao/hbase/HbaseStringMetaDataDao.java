@@ -16,25 +16,19 @@
 
 package com.navercorp.pinpoint.web.dao.hbase;
 
-import com.navercorp.pinpoint.common.hbase.HbaseColumnFamily;
+import com.navercorp.pinpoint.common.bo.StringMetaDataBo;
+import com.navercorp.pinpoint.common.hbase.HBaseTables;
 import com.navercorp.pinpoint.common.hbase.HbaseOperations2;
-import com.navercorp.pinpoint.common.hbase.RowMapper;
-import com.navercorp.pinpoint.common.hbase.TableNameProvider;
-import com.navercorp.pinpoint.common.server.bo.StringMetaDataBo;
-import com.navercorp.pinpoint.common.server.bo.serializer.RowKeyEncoder;
-import com.navercorp.pinpoint.common.server.bo.serializer.metadata.DefaultMetaDataRowKey;
-import com.navercorp.pinpoint.common.server.bo.serializer.metadata.MetadataEncoder;
-import com.navercorp.pinpoint.common.server.bo.serializer.metadata.MetaDataRowKey;
 import com.navercorp.pinpoint.web.dao.StringMetaDataDao;
-
 import com.sematext.hbase.wd.RowKeyDistributorByHashPrefix;
-import org.apache.hadoop.hbase.TableName;
+
 import org.apache.hadoop.hbase.client.Get;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.hadoop.hbase.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * @author emeroad
@@ -42,43 +36,33 @@ import java.util.Objects;
 @Repository
 public class HbaseStringMetaDataDao implements StringMetaDataDao {
 
-    private final HbaseOperations2 hbaseOperations2;
-    private final TableNameProvider tableNameProvider;
+    @Autowired
+    private HbaseOperations2 hbaseOperations2;
 
-    private final RowMapper<List<StringMetaDataBo>> stringMetaDataMapper;
+    @Autowired
+    @Qualifier("stringMetaDataMapper")
+    private RowMapper<List<StringMetaDataBo>> stringMetaDataMapper;
 
-    private final RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix;
-
-    private final HbaseColumnFamily.StringMetadataStr DESCRIPTOR = HbaseColumnFamily.STRING_METADATA_STR;
-
-    private final RowKeyEncoder<MetaDataRowKey> rowKeyEncoder = new MetadataEncoder();
-
-    public HbaseStringMetaDataDao(HbaseOperations2 hbaseOperations2,
-                                  TableNameProvider tableNameProvider,
-                                  @Qualifier("stringMetaDataMapper") RowMapper<List<StringMetaDataBo>> stringMetaDataMapper,
-                                  @Qualifier("metadataRowKeyDistributor") RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix) {
-        this.hbaseOperations2 = Objects.requireNonNull(hbaseOperations2, "hbaseOperations2");
-        this.tableNameProvider = Objects.requireNonNull(tableNameProvider, "tableNameProvider");
-        this.stringMetaDataMapper = Objects.requireNonNull(stringMetaDataMapper, "stringMetaDataMapper");
-        this.rowKeyDistributorByHashPrefix = Objects.requireNonNull(rowKeyDistributorByHashPrefix, "rowKeyDistributorByHashPrefix");
-    }
+    @Autowired
+    @Qualifier("metadataRowKeyDistributor")
+    private RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix;
 
     @Override
     public List<StringMetaDataBo> getStringMetaData(String agentId, long time, int stringId) {
-        Objects.requireNonNull(agentId, "agentId");
+        if (agentId == null) {
+            throw new NullPointerException("agentId must not be null");
+        }
 
-        MetaDataRowKey metaDataRowKey = new DefaultMetaDataRowKey(agentId, time, stringId);
-        byte[] rowKey = getDistributedKey(rowKeyEncoder.encodeRowKey(metaDataRowKey));
+        StringMetaDataBo stringMetaData = new StringMetaDataBo(agentId, time, stringId);
+        byte[] rowKey = getDistributedKey(stringMetaData.toRowKey());
 
         Get get = new Get(rowKey);
-        get.addFamily(DESCRIPTOR.getName());
+        get.addFamily(HBaseTables.STRING_METADATA_CF_STR);
 
-        TableName stringMetaDataTableName = tableNameProvider.getTableName(DESCRIPTOR.getTable());
-        return hbaseOperations2.get(stringMetaDataTableName, get, stringMetaDataMapper);
+        return hbaseOperations2.get(HBaseTables.STRING_METADATA, get, stringMetaDataMapper);
     }
 
     private byte[] getDistributedKey(byte[] rowKey) {
         return rowKeyDistributorByHashPrefix.getDistributedKey(rowKey);
     }
-
 }

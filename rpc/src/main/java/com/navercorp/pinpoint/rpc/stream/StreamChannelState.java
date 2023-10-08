@@ -16,8 +16,6 @@
 
 package com.navercorp.pinpoint.rpc.stream;
 
-import com.navercorp.pinpoint.rpc.PinpointSocketException;
-
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -25,51 +23,63 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class StreamChannelState {
 
-    private final AtomicReference<StreamChannelStateCode> currentStateReference = new AtomicReference<StreamChannelStateCode>();
+    private final AtomicReference<StreamChannelStateCode> currentStateRefernce = new AtomicReference<StreamChannelStateCode>();
 
     public StreamChannelState() {
-        currentStateReference.set(StreamChannelStateCode.NEW);
+        currentStateRefernce.set(StreamChannelStateCode.NEW);
+    }
+
+    public boolean changeStateOpen() {
+        boolean result = currentStateRefernce.compareAndSet(StreamChannelStateCode.NEW, StreamChannelStateCode.OPEN);
+        if (!result) {
+            changeStateIllegal();
+        }
+        return result;
+    }
+
+    public boolean changeStateOpenAwait() {
+        boolean result = currentStateRefernce.compareAndSet(StreamChannelStateCode.OPEN, StreamChannelStateCode.OPEN_AWAIT);
+        if (!result) {
+            changeStateIllegal();
+        }
+        return result;
+    }
+
+    public boolean changeStateOpenArrived() {
+        boolean result = currentStateRefernce.compareAndSet(StreamChannelStateCode.NEW, StreamChannelStateCode.OPEN_ARRIVED);
+        if (!result) {
+            changeStateIllegal();
+        }
+        return result;
+    }
+
+    public boolean changeStateRun() {
+        StreamChannelStateCode currentState = this.currentStateRefernce.get();
+
+        StreamChannelStateCode nextState = StreamChannelStateCode.RUN;
+        if (!nextState.canChangeState(currentState)) {
+            changeStateIllegal();
+            return false;
+        }
+
+        return currentStateRefernce.compareAndSet(currentState, StreamChannelStateCode.RUN);
+    }
+
+    public boolean changeStateClose() {
+        if (currentStateRefernce.get() == StreamChannelStateCode.CLOSED) {
+            return false;
+        }
+
+        currentStateRefernce.set(StreamChannelStateCode.CLOSED);
+        return true;
+    }
+
+    private void changeStateIllegal() {
+        currentStateRefernce.set(StreamChannelStateCode.ILLEGAL_STATE);
     }
 
     public StreamChannelStateCode getCurrentState() {
-        return currentStateReference.get();
-    }
-
-    boolean to(StreamChannelStateCode nextState) {
-        return to(currentStateReference.get(), nextState);
-    }
-
-    boolean to(StreamChannelStateCode currentState, StreamChannelStateCode nextState) {
-        if (!nextState.canChangeState(currentState)) {
-            return false;
-        }
-
-        boolean isChanged = currentStateReference.compareAndSet(currentState, nextState);
-        return isChanged;
-    }
-
-    public boolean checkState(StreamChannelStateCode expectedCode) {
-        return checkState(getCurrentState(), expectedCode);
-    }
-
-    public boolean checkState(StreamChannelStateCode currentCode, StreamChannelStateCode expectedCode) {
-        if (currentCode == expectedCode) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    public void assertState(StreamChannelStateCode stateCode) {
-        final StreamChannelStateCode currentCode = getCurrentState();
-        if (!checkState(currentCode, stateCode)) {
-            throw new PinpointSocketException("expected:<" + stateCode + "> but was:<" + currentCode + ">;");
-        }
-    }
-
-    @Override
-    public String toString() {
-        return currentStateReference.get().name();
+        return currentStateRefernce.get();
     }
 
 }

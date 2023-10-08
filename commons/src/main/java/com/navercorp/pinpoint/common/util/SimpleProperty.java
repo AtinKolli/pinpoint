@@ -16,8 +16,6 @@
 
 package com.navercorp.pinpoint.common.util;
 
-import java.util.Set;
-
 /**
  * @author emeroad
  */
@@ -27,6 +25,4 @@ public interface SimpleProperty {
     String getProperty(String key);
 
     String getProperty(String key, String defaultValue);
-
-    Set<String> stringPropertyNames();
 }

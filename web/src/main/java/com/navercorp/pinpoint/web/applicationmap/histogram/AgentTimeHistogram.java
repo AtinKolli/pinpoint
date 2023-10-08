@@ -16,184 +16,119 @@
 
 package com.navercorp.pinpoint.web.applicationmap.histogram;
 
-import com.navercorp.pinpoint.common.server.util.time.Range;
-import com.navercorp.pinpoint.common.trace.ServiceType;
+import com.navercorp.pinpoint.common.HistogramSchema;
+import com.navercorp.pinpoint.common.ServiceType;
+import com.navercorp.pinpoint.common.SlotType;
 import com.navercorp.pinpoint.web.applicationmap.rawdata.AgentHistogram;
 import com.navercorp.pinpoint.web.applicationmap.rawdata.AgentHistogramList;
 import com.navercorp.pinpoint.web.util.TimeWindow;
+import com.navercorp.pinpoint.web.util.TimeWindowDownSampler;
 import com.navercorp.pinpoint.web.view.AgentResponseTimeViewModel;
-import com.navercorp.pinpoint.web.view.TimeViewModel;
+import com.navercorp.pinpoint.web.view.ResponseTimeViewModel;
 import com.navercorp.pinpoint.web.vo.Application;
-import com.navercorp.pinpoint.web.vo.stat.SampledApdexScore;
-import com.navercorp.pinpoint.web.vo.stat.chart.agent.AgentStatPoint;
-import com.navercorp.pinpoint.web.vo.stat.chart.application.DoubleApplicationStatPoint;
+import com.navercorp.pinpoint.web.vo.Range;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
 
 /**
- * most of the features have been delegated to AgentHistogramList upon refactoring
+ * most of the features have been delegated to AgentHistorgramList upon refactoring
  * TODO: functionality reduced to creating views - need to be renamed or removed
- *
  * @author emeroad
  */
 public class AgentTimeHistogram {
 
-    private static final Double DEFAULT_MIN_APDEX_SCORE = 2D;
-    private static final Double DEFAULT_MAX_APDEX_SCORE = -2D;
-    private static final String DEFAULT_AGENT_ID = "defaultAgentId";
-
-    private static final Comparator<AgentResponseTimeViewModel> AGENT_NAME_COMPARATOR
-            = Comparator.comparing(AgentResponseTimeViewModel::getAgentName);
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final Application application;
     private final Range range;
+    private final TimeWindow window;
+
     private final AgentHistogramList agentHistogramList;
 
     public AgentTimeHistogram(Application application, Range range) {
-        this.application = Objects.requireNonNull(application, "application");
-        this.range = Objects.requireNonNull(range, "range");
+        if (application == null) {
+            throw new NullPointerException("application must not be null");
+        }
+        if (range == null) {
+            throw new NullPointerException("range must not be null");
+        }
+        this.application = application;
+        this.range = range;
+        this.window = new TimeWindow(range, TimeWindowDownSampler.SAMPLER);
         this.agentHistogramList = new AgentHistogramList();
     }
 
     public AgentTimeHistogram(Application application, Range range, AgentHistogramList agentHistogramList) {
-        this.application = Objects.requireNonNull(application, "application");
-        this.range = Objects.requireNonNull(range, "range");
-        this.agentHistogramList = Objects.requireNonNull(agentHistogramList, "agentHistogramList");
+        if (application == null) {
+            throw new NullPointerException("application must not be null");
+        }
+        if (range == null) {
+            throw new NullPointerException("range must not be null");
+        }
+        if (agentHistogramList == null) {
+            throw new NullPointerException("agentHistogramList must not be null");
+        }
+        this.application = application;
+        this.range = range;
+        this.window = new TimeWindow(range, TimeWindowDownSampler.SAMPLER);
+        this.agentHistogramList = agentHistogramList;
     }
 
 
-    public List<AgentResponseTimeViewModel> createViewModel(TimeHistogramFormat timeHistogramFormat) {
-        final List<AgentResponseTimeViewModel> result = new ArrayList<>();
+    public List<AgentResponseTimeViewModel> createViewModel() {
+        final List<AgentResponseTimeViewModel> result = new ArrayList<AgentResponseTimeViewModel>();
         for (AgentHistogram agentHistogram : agentHistogramList.getAgentHistogramList()) {
             Application agentId = agentHistogram.getAgentId();
             List<TimeHistogram> timeList = sortTimeHistogram(agentHistogram.getTimeHistogram());
-            AgentResponseTimeViewModel model = createAgentResponseTimeViewModel(agentId, timeList, timeHistogramFormat);
+            AgentResponseTimeViewModel model = createAgentResponseTimeViewModel(agentId, timeList);
             result.add(model);
         }
-        result.sort(AGENT_NAME_COMPARATOR);
-        return result;
-    }
-
-    public Map<String, List<TimeHistogram>> getAgentTimeHistogramMap() {
-        Map<String, List<TimeHistogram>> result = new HashMap<>();
-        for (AgentHistogram agentHistogram : agentHistogramList.getAgentHistogramList()) {
-            result.put(agentHistogram.getAgentId().getName(), sortTimeHistogram(agentHistogram.getTimeHistogram()));
-        }
+        Collections.sort(result, new Comparator<AgentResponseTimeViewModel>() {
+            @Override
+            public int compare(AgentResponseTimeViewModel o1, AgentResponseTimeViewModel o2) {
+                return o1.getAgentName().compareTo(o2.getAgentName());
+            }
+        });
         return result;
     }
 
     private List<TimeHistogram> sortTimeHistogram(Collection<TimeHistogram> timeMap) {
-        List<TimeHistogram> timeList = new ArrayList<>(timeMap);
-        timeList.sort(TimeHistogram.TIME_STAMP_ASC_COMPARATOR);
+        List<TimeHistogram> timeList = new ArrayList<TimeHistogram>(timeMap);
+        Collections.sort(timeList, TimeHistogram.TIME_STAMP_ASC_COMPARATOR);
         return timeList;
     }
 
-    private AgentResponseTimeViewModel createAgentResponseTimeViewModel(Application agentName, List<TimeHistogram> timeHistogramList, TimeHistogramFormat timeHistogramFormat) {
-        List<TimeViewModel> responseTimeViewModel = createResponseTimeViewModel(timeHistogramList, timeHistogramFormat);
+
+    private AgentResponseTimeViewModel createAgentResponseTimeViewModel(Application agentName, List<TimeHistogram> timeHistogramList) {
+        List<ResponseTimeViewModel> responseTimeViewModel = createResponseTimeViewModel(timeHistogramList);
         AgentResponseTimeViewModel agentResponseTimeViewModel = new AgentResponseTimeViewModel(agentName, responseTimeViewModel);
         return agentResponseTimeViewModel;
     }
 
-    private List<TimeViewModel> createResponseTimeViewModel(List<TimeHistogram> timeHistogramList, TimeHistogramFormat timeHistogramFormat) {
-        return new TimeViewModel.TimeViewModelBuilder(application, timeHistogramList).setTimeHistogramFormat(timeHistogramFormat).build();
+    public List<ResponseTimeViewModel> createResponseTimeViewModel(List<TimeHistogram> timeHistogramList) {
+        final List<ResponseTimeViewModel> value = new ArrayList<ResponseTimeViewModel>(5);
+        ServiceType serviceType = application.getServiceType();
+        HistogramSchema schema = serviceType.getHistogramSchema();
+        value.add(new ResponseTimeViewModel(schema.getFastSlot().getSlotName(), getColumnValue(SlotType.FAST, timeHistogramList)));
+        value.add(new ResponseTimeViewModel(schema.getNormalSlot().getSlotName(), getColumnValue(SlotType.NORMAL, timeHistogramList)));
+        value.add(new ResponseTimeViewModel(schema.getSlowSlot().getSlotName(), getColumnValue(SlotType.SLOW, timeHistogramList)));
+        value.add(new ResponseTimeViewModel(schema.getVerySlowSlot().getSlotName(), getColumnValue(SlotType.VERY_SLOW, timeHistogramList)));
+        value.add(new ResponseTimeViewModel(schema.getErrorSlot().getSlotName(), getColumnValue(SlotType.ERROR, timeHistogramList)));
+        return value;
     }
 
-    public List<SampledApdexScore> getSampledAgentApdexScoreList(String agentName) {
-        AgentHistogram agentHistogram = selectAgentHistogram(agentName);
-        if (agentHistogram == null) {
-            return Collections.emptyList();
-        }
-
-        List<SampledApdexScore> result = new ArrayList<>();
-        for (TimeHistogram timeHistogram : agentHistogram.getTimeHistogram()) {
-            if (timeHistogram.getTotalCount() != 0) {
-                AgentStatPoint<Double> agentStatPoint = new AgentStatPoint<>(timeHistogram.getTimeStamp(), ApdexScore.toDoubleFromHistogram(timeHistogram));
-                result.add(new SampledApdexScore(agentStatPoint));
-            }
+    public List<ResponseTimeViewModel.TimeCount> getColumnValue(SlotType slotType, List<TimeHistogram> timeHistogramList) {
+        List<ResponseTimeViewModel.TimeCount> result = new ArrayList<ResponseTimeViewModel.TimeCount>(timeHistogramList.size());
+        for (TimeHistogram timeHistogram : timeHistogramList) {
+            result.add(new ResponseTimeViewModel.TimeCount(timeHistogram.getTimeStamp(), getCount(timeHistogram, slotType)));
         }
         return result;
     }
 
-    private AgentHistogram selectAgentHistogram(String agentName) {
-        for (AgentHistogram agentHistogram : agentHistogramList.getAgentHistogramList()) {
-            Application agentId = agentHistogram.getAgentId();
-            if (agentId.getName().equals(agentName)) {
-                return agentHistogram;
-            }
-        }
-        return null;
-    }
-
-    public List<DoubleApplicationStatPoint> getApplicationApdexScoreList(TimeWindow window) {
-        int size = (int) window.getWindowRangeCount();
-        List<Double> min = fillList(size, DEFAULT_MIN_APDEX_SCORE);
-        List<String> minAgentId = fillList(size, DEFAULT_AGENT_ID);
-        List<Double> max = fillList(size, DEFAULT_MAX_APDEX_SCORE);
-        List<String> maxAgentId = fillList(size, DEFAULT_AGENT_ID);
-
-        List<Histogram> sumHistogram = getDefaultHistograms(window, application.getServiceType());
-
-        for (AgentHistogram agentHistogram : agentHistogramList.getAgentHistogramList()) {
-            for (TimeHistogram timeHistogram : agentHistogram.getTimeHistogram()) {
-                if (timeHistogram.getTotalCount() != 0) {
-                    int index = window.getWindowIndex(timeHistogram.getTimeStamp());
-                    if (index < 0 || index >= size) {
-                        continue;
-                    }
-                    double apdex = ApdexScore.toDoubleFromHistogram(timeHistogram);
-                    String agentId = agentHistogram.getId();
-
-                    updateMinMaxValue(index, apdex, agentId, min, minAgentId, max, maxAgentId);
-                    sumHistogram.get(index).add(timeHistogram);
-                }
-            }
-        }
-
-        return createDoubleApplicationStatPoints(window, min, minAgentId, max, maxAgentId, sumHistogram);
-    }
-
-    private <T> List<T> fillList(int size, T defaultValue) {
-        return new ArrayList<>(Collections.nCopies(size, defaultValue));
-    }
-
-    private void updateMinMaxValue(int index, double apdex, String agentId,
-                                   List<Double> min, List<String> minAgentId, List<Double> max, List<String> maxAgentId) {
-        if (min.get(index) > apdex) {
-            min.set(index, apdex);
-            minAgentId.set(index, agentId);
-        }
-        if (max.get(index) < apdex) {
-            max.set(index, apdex);
-            maxAgentId.set(index, agentId);
-        }
-    }
-
-    private List<DoubleApplicationStatPoint> createDoubleApplicationStatPoints(TimeWindow window, List<Double> min, List<String> minAgentId, List<Double> max, List<String> maxAgentId, List<Histogram> sumHistogram) {
-        List<DoubleApplicationStatPoint> applicationStatPoints = new ArrayList<>();
-        for (long timestamp : window) {
-            int index = window.getWindowIndex(timestamp);
-            Histogram histogram = sumHistogram.get(index);
-            if (histogram.getTotalCount() != 0) {
-                double avg = ApdexScore.toDoubleFromHistogram(histogram);
-                DoubleApplicationStatPoint point = new DoubleApplicationStatPoint(timestamp, min.get(index), minAgentId.get(index), max.get(index), maxAgentId.get(index), avg);
-                applicationStatPoints.add(point);
-            }
-        }
-        return applicationStatPoints;
-    }
-
-    private List<Histogram> getDefaultHistograms(TimeWindow window, ServiceType serviceType) {
-        List<Histogram> sum = new ArrayList<>((int) window.getWindowRangeCount());
-        for (long timestamp : window) {
-            sum.add(new TimeHistogram(serviceType, timestamp));
-        }
-        return sum;
+    public long getCount(TimeHistogram timeHistogram, SlotType slotType) {
+        return timeHistogram.getCount(slotType);
     }
 }

@@ -16,103 +16,73 @@
 
 package com.navercorp.pinpoint.profiler.context;
 
-import com.navercorp.pinpoint.bootstrap.context.SpanEventRecorder;
-import com.navercorp.pinpoint.bootstrap.context.SpanRecorder;
+import com.navercorp.pinpoint.bootstrap.context.AsyncTraceId;
 import com.navercorp.pinpoint.bootstrap.context.Trace;
 import com.navercorp.pinpoint.bootstrap.context.TraceId;
-import com.navercorp.pinpoint.bootstrap.context.scope.TraceScope;
-import com.navercorp.pinpoint.profiler.context.id.LocalTraceRoot;
-import com.navercorp.pinpoint.profiler.context.id.Shared;
-import com.navercorp.pinpoint.profiler.context.scope.DefaultTraceScopePool;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.util.Objects;
+import com.navercorp.pinpoint.bootstrap.interceptor.MethodDescriptor;
+import com.navercorp.pinpoint.common.AnnotationKey;
+import com.navercorp.pinpoint.common.ServiceType;
+import com.navercorp.pinpoint.common.util.ParsingResult;
 
 
 /**
  * @author emeroad
- * @author jaehong.kim
  */
-public class DisableTrace implements Trace {
-    protected final Logger logger = LogManager.getLogger(getClass());
-    protected final boolean isDebug = logger.isDebugEnabled();
+public class DisableTrace  implements Trace {
 
-    public static final String UNSUPPORTED_OPERATION = "disable trace";
-    public static final long DISABLE_TRACE_OBJECT_ID = -1;
-
-    private final LocalTraceRoot traceRoot;
-    private final SpanRecorder spanRecorder;
-    private DefaultTraceScopePool scopePool;
-    private final CloseListener closeListener;
-
-    private int depth;
-
-    private SpanEventRecorder spanEventRecorder;
-
-    private boolean closed = false;
-
-    public DisableTrace(LocalTraceRoot traceRoot,
-                        SpanRecorder spanRecorder, SpanEventRecorder spanEventRecorder,
-                        CloseListener closeListener) {
-        this.traceRoot = Objects.requireNonNull(traceRoot, "traceRoot");
-        this.spanRecorder = Objects.requireNonNull(spanRecorder, "spanRecorder");
-        this.spanEventRecorder = Objects.requireNonNull(spanEventRecorder, "spanEventRecorder");
-
-        this.closeListener = Objects.requireNonNull(closeListener, "closeListener");
-
-        setCurrentThread();
-    }
-
-    private void setCurrentThread() {
-        final long threadId = Thread.currentThread().getId();
-        getShared().setThreadId(threadId);
+    public static final DisableTrace INSTANCE = new DisableTrace();
+    
+    private DisableTrace() {
     }
 
     @Override
-    public long getId() {
-        return traceRoot.getLocalTransactionId();
+    public void traceBlockBegin() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public long getStartTime() {
-        return traceRoot.getTraceStartTime();
-    }
-
-
-    @Override
-    public SpanEventRecorder traceBlockBegin() {
-        return traceBlockBegin(DEFAULT_STACKID);
+    public void markBeforeTime() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public SpanEventRecorder traceBlockBegin(int stackId) {
-        push();
-        return this.spanEventRecorder;
+    public long getBeforeTime() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void markAfterTime() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long getAfterTime() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void traceBlockBegin(int stackId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void traceRootBlockEnd() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void traceBlockEnd() {
-        traceBlockBegin(DEFAULT_STACKID);
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void traceBlockEnd(int stackId) {
-        pop();
+        throw new UnsupportedOperationException();
     }
-
-    private int push() {
-        return this.depth++;
-    }
-
-    private void pop() {
-        this.depth--;
-    }
-
 
     @Override
     public TraceId getTraceId() {
-        throw new UnsupportedOperationException(UNSUPPORTED_OPERATION);
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -127,71 +97,140 @@ public class DisableTrace implements Trace {
     }
 
     @Override
+    public void recordException(Throwable throwable) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordApi(MethodDescriptor methodDescriptor) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordApi(MethodDescriptor methodDescriptor, Object[] args) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordApi(MethodDescriptor methodDescriptor, Object args, int index) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordApi(MethodDescriptor methodDescriptor, Object[] args, int start, int end) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordApiCachedString(MethodDescriptor methodDescriptor, String args, int index) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ParsingResult recordSqlInfo(String sql) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordSqlParsingResult(ParsingResult parsingResult) {
+        throw new UnsupportedOperationException();
+    }
+
+    public void recordSqlParsingResult(ParsingResult parsingResult, String bindValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordAttribute(AnnotationKey key, String value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordAttribute(AnnotationKey key, int value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordAttribute(AnnotationKey key, Object value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordServiceType(ServiceType serviceType) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordRpcName(String rpc) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordDestinationId(String destinationId) {
+        throw new UnsupportedOperationException();
+    }
+
+
+    @Override
+    public void recordEndPoint(String endPoint) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordRemoteAddress(String remoteAddress) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordNextSpanId(long spanId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordParentApplication(String parentApplicationName, short parentApplicationType) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordAcceptorHost(String host) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getStackFrameId() {
+        throw new UnsupportedOperationException();
+    }
+    
+    @Override
+    public short getServiceType() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void recordAsyncId(int asyncId) {
+    }
+
+    @Override
+    public void recordNextAsyncId(int asyncId) {
+    }
+
+    @Override
     public boolean isAsync() {
         return false;
     }
 
     @Override
+    public long getTraceStartTime() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public boolean isRootStack() {
-        return depth == 0;
-    }
-
-
-    @Override
-    public boolean isClosed() {
-        return closed;
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public void close() {
-        if (closed) {
-            logger.debug("Already closed");
-            return;
-        }
-        closed = true;
-
-        final long purgeTime = System.currentTimeMillis();
-        this.closeListener.close(purgeTime);
+    public AsyncTraceId getAsyncTraceId() {
+        throw new UnsupportedOperationException();
     }
-
-    protected void flush() {
-        this.closed = true;
-    }
-
-    private Shared getShared() {
-        return traceRoot.getShared();
-    }
-
-    @Override
-    public int getCallStackFrameId() {
-        return DEFAULT_STACKID;
-    }
-
-    @Override
-    public SpanRecorder getSpanRecorder() {
-        return spanRecorder;
-    }
-
-    @Override
-    public SpanEventRecorder currentSpanEventRecorder() {
-        return spanEventRecorder;
-    }
-
-
-    @Override
-    public TraceScope getScope(String name) {
-        if (scopePool == null) {
-            return null;
-        }
-        return scopePool.get(name);
-    }
-
-    @Override
-    public TraceScope addScope(String name) {
-        if (scopePool == null) {
-            scopePool = new DefaultTraceScopePool();
-        }
-        return scopePool.add(name);
-    }
-
 }

@@ -16,30 +16,23 @@
 
 package com.navercorp.pinpoint.web.dao.hbase;
 
-import com.navercorp.pinpoint.common.hbase.HbaseColumnFamily;
-import com.navercorp.pinpoint.common.hbase.HbaseOperations2;
-import com.navercorp.pinpoint.common.hbase.RowMapper;
-import com.navercorp.pinpoint.common.hbase.TableNameProvider;
-import com.navercorp.pinpoint.common.util.StringUtils;
-import com.navercorp.pinpoint.web.dao.ApplicationIndexDao;
-import com.navercorp.pinpoint.web.util.ListListUtils;
-import com.navercorp.pinpoint.web.vo.Application;
+import java.util.ArrayList;
+import java.util.List;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.MapUtils;
-import org.apache.hadoop.hbase.TableName;
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.hadoop.hbase.RowMapper;
 import org.springframework.stereotype.Repository;
-import org.springframework.util.Assert;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import com.navercorp.pinpoint.common.hbase.HBaseTables;
+import com.navercorp.pinpoint.common.hbase.HbaseOperations2;
+import com.navercorp.pinpoint.web.dao.ApplicationIndexDao;
+import com.navercorp.pinpoint.web.vo.Application;
 
 /**
  * @author netspider
@@ -48,114 +41,61 @@ import java.util.Objects;
 @Repository
 public class HbaseApplicationIndexDao implements ApplicationIndexDao {
 
-    private static final HbaseColumnFamily.ApplicationIndex DESCRIPTOR = HbaseColumnFamily.APPLICATION_INDEX_AGENTS;
+    @Autowired
+    private HbaseOperations2 hbaseOperations2;
 
-    private final HbaseOperations2 hbaseOperations2;
-    private final TableNameProvider tableNameProvider;
+    @Autowired
+    @Qualifier("applicationNameMapper")
+    private RowMapper<List<Application>> applicationNameMapper;
 
-    private final RowMapper<List<Application>> applicationNameMapper;
-
-    private final RowMapper<List<String>> agentIdMapper;
-
-
-    public HbaseApplicationIndexDao(HbaseOperations2 hbaseOperations2,
-                                    TableNameProvider tableNameProvider,
-                                    @Qualifier("applicationNameMapper") RowMapper<List<Application>> applicationNameMapper,
-                                    @Qualifier("agentIdMapper") RowMapper<List<String>> agentIdMapper) {
-        this.hbaseOperations2 = Objects.requireNonNull(hbaseOperations2, "hbaseOperations2");
-        this.tableNameProvider = Objects.requireNonNull(tableNameProvider, "tableNameProvider");
-        this.applicationNameMapper = Objects.requireNonNull(applicationNameMapper, "applicationNameMapper");
-        this.agentIdMapper = Objects.requireNonNull(agentIdMapper, "agentIdMapper");
-    }
+    @Autowired
+    @Qualifier("agentIdMapper")
+    private RowMapper<List<String>> agentIdMapper;
 
     @Override
     public List<Application> selectAllApplicationNames() {
         Scan scan = new Scan();
         scan.setCaching(30);
-        scan.addFamily(DESCRIPTOR.getName());
-
-        TableName applicationIndexTableName = tableNameProvider.getTableName(DESCRIPTOR.getTable());
-        List<List<Application>> results = hbaseOperations2.find(applicationIndexTableName, scan, applicationNameMapper);
-
-        return ListListUtils.toList(results);
-    }
-
-    @Override
-    public List<Application> selectApplicationName(String applicationName) {
-        return selectApplicationIndex0(applicationName, applicationNameMapper);
+        List<List<Application>> results = hbaseOperations2.find(HBaseTables.APPLICATION_INDEX, scan, applicationNameMapper);
+        List<Application> applications = new ArrayList<Application>();
+        for (List<Application> result : results) {
+            applications.addAll(result);
+        }
+        return applications;
     }
 
     @Override
     public List<String> selectAgentIds(String applicationName) {
-        return selectApplicationIndex0(applicationName, agentIdMapper);
-    }
-
-    private <T> List<T> selectApplicationIndex0(String applicationName, RowMapper<List<T>> rowMapper) {
-        Objects.requireNonNull(applicationName, "applicationName");
-        Objects.requireNonNull(rowMapper, "rowMapper");
-
+        if (applicationName == null) {
+            throw new NullPointerException("applicationName must not be null");
+        }
         byte[] rowKey = Bytes.toBytes(applicationName);
 
         Get get = new Get(rowKey);
-        get.addFamily(DESCRIPTOR.getName());
+        get.addFamily(HBaseTables.APPLICATION_INDEX_CF_AGENTS);
 
-        TableName applicationIndexTableName = tableNameProvider.getTableName(DESCRIPTOR.getTable());
-        return hbaseOperations2.get(applicationIndexTableName, get, rowMapper);
+        return hbaseOperations2.get(HBaseTables.APPLICATION_INDEX, get, agentIdMapper);
     }
 
     @Override
     public void deleteApplicationName(String applicationName) {
-        Objects.requireNonNull(applicationName, "applicationName");
-
         byte[] rowKey = Bytes.toBytes(applicationName);
         Delete delete = new Delete(rowKey);
-
-        TableName applicationIndexTableName = tableNameProvider.getTableName(DESCRIPTOR.getTable());
-        hbaseOperations2.delete(applicationIndexTableName, delete);
-    }
-
-    @Override
-    public void deleteAgentIds(Map<String, List<String>> applicationAgentIdMap) {
-        if (MapUtils.isEmpty(applicationAgentIdMap)) {
-            return;
-        }
-
-        List<Delete> deletes = new ArrayList<>(applicationAgentIdMap.size());
-
-        for (Map.Entry<String, List<String>> entry : applicationAgentIdMap.entrySet()) {
-            String applicationName = entry.getKey();
-            List<String> agentIds = entry.getValue();
-            if (StringUtils.isEmpty(applicationName) || CollectionUtils.isEmpty(agentIds)) {
-                continue;
-            }
-            Delete delete = new Delete(Bytes.toBytes(applicationName));
-            for (String agentId : agentIds) {
-                if (StringUtils.hasLength(agentId)) {
-                    delete.addColumns(DESCRIPTOR.getName(), Bytes.toBytes(agentId));
-                }
-            }
-            // don't delete if nothing has been specified except row
-            if (!delete.getFamilyCellMap().isEmpty()) {
-                deletes.add(delete);
-            }
-        }
-
-        TableName applicationIndexTableName = tableNameProvider.getTableName(DESCRIPTOR.getTable());
-        hbaseOperations2.delete(applicationIndexTableName, deletes);
+        hbaseOperations2.delete(HBaseTables.APPLICATION_INDEX, delete);
     }
 
     @Override
     public void deleteAgentId(String applicationName, String agentId) {
-        Assert.hasLength(applicationName, "applicationName");
-        Assert.hasLength(agentId, "agentId");
-
+        if (StringUtils.isEmpty(applicationName)) {
+            throw new IllegalArgumentException("applicationName cannot be empty");
+        }
+        if (StringUtils.isEmpty(agentId)) {
+            throw new IllegalArgumentException("agentId cannot be empty");
+        }
         byte[] rowKey = Bytes.toBytes(applicationName);
         Delete delete = new Delete(rowKey);
         byte[] qualifier = Bytes.toBytes(agentId);
-        delete.addColumns(DESCRIPTOR.getName(), qualifier);
-
-        TableName applicationIndexTableName = tableNameProvider.getTableName(DESCRIPTOR.getTable());
-        hbaseOperations2.delete(applicationIndexTableName, delete);
+        delete.deleteColumns(HBaseTables.APPLICATION_INDEX_CF_AGENTS, qualifier);
+        hbaseOperations2.delete(HBaseTables.APPLICATION_INDEX, delete);
     }
-
 }

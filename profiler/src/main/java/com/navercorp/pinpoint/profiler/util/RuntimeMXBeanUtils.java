@@ -16,14 +16,13 @@
 
 package com.navercorp.pinpoint.profiler.util;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
-
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * @author emeroad
@@ -57,7 +56,7 @@ public final class RuntimeMXBeanUtils {
         final String name = RUNTIME_MBEAN.getName();
         final int pidIndex = name.indexOf('@');
         if (pidIndex == -1) {
-            getLogger().warn("invalid pid name:" + name);
+            getLogger().log(Level.WARNING, "invalid pid name:" + name);
             return getNegativeRandomValue();
         }
         String strPid = name.substring(0, pidIndex);
@@ -85,10 +84,10 @@ public final class RuntimeMXBeanUtils {
 
     private static long getVmStartTime0() {
         try {
-            return RUNTIME_MBEAN.getStartTime();
+            return  RUNTIME_MBEAN.getStartTime();
         } catch (UnsupportedOperationException e) {
             final Logger logger = getLogger();
-            logger.warn("RuntimeMXBean.getStartTime() unsupported. Caused:" + e.getMessage(), e);
+            logger.log(Level.WARNING, "RuntimeMXBean.getStartTime() unsupported. Caused:" + e.getMessage(), e);
             return System.currentTimeMillis();
         }
     }
@@ -98,7 +97,7 @@ public final class RuntimeMXBeanUtils {
     }
 
     private static Logger getLogger() {
-        return LogManager.getLogger(RuntimeMXBeanUtils.class);
+        return Logger.getLogger(RuntimeMXBeanUtils.class.getName());
     }
 
 }

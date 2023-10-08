@@ -16,8 +16,8 @@
 
 package com.navercorp.pinpoint.collector.cluster.route;
 
-import com.navercorp.pinpoint.rpc.stream.ClientStreamChannel;
-import com.navercorp.pinpoint.rpc.stream.ServerStreamChannel;
+import com.navercorp.pinpoint.rpc.stream.ClientStreamChannelContext;
+import com.navercorp.pinpoint.rpc.stream.ServerStreamChannelContext;
 import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
 
 /**
@@ -25,30 +25,30 @@ import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
  */
 public class StreamRouteCloseEvent extends DefaultRouteEvent {
 
-    private final ClientStreamChannel producerStreamChannel;
-    private final ServerStreamChannel consumerStreamChannel;
+    private final ClientStreamChannelContext producerContext;
+    private final ServerStreamChannelContext consumerContext;
 
-    public StreamRouteCloseEvent(TCommandTransfer deliveryCommand, ClientStreamChannel producerStreamChannel, ServerStreamChannel consumerStreamChannel) {
-        super(deliveryCommand, consumerStreamChannel.getRemoteAddress());
+    public StreamRouteCloseEvent(TCommandTransfer deliveryCommand, ClientStreamChannelContext producerContext, ServerStreamChannelContext consumerContext) {
+        super(deliveryCommand, consumerContext.getStreamChannel().getChannel());
 
-        this.producerStreamChannel = producerStreamChannel;
-        this.consumerStreamChannel = consumerStreamChannel;
+        this.producerContext = producerContext;
+        this.consumerContext = consumerContext;
     }
 
     public int getProducerStreamChannelId() {
-        return producerStreamChannel.getStreamId();
+        return producerContext.getStreamId();
     }
     
     public int getConsumerStreamChannelId() {
-        return consumerStreamChannel.getStreamId();
+        return consumerContext.getStreamId();
     }
 
-    public ClientStreamChannel getProducerStreamChannel() {
-        return producerStreamChannel;
+    public ClientStreamChannelContext getProducerContext() {
+        return producerContext;
     }
 
-    public ServerStreamChannel getConsumerStreamChannel() {
-        return consumerStreamChannel;
+    public ServerStreamChannelContext getConsumerContext() {
+        return consumerContext;
     }
 
 }

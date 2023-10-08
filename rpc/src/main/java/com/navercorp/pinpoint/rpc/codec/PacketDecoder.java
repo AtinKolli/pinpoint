@@ -16,15 +16,13 @@
 
 package com.navercorp.pinpoint.rpc.codec;
 
-import com.navercorp.pinpoint.rpc.packet.PingPayloadPacket;
-import com.navercorp.pinpoint.rpc.packet.PingSimplePacket;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.handler.codec.frame.FrameDecoder;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.navercorp.pinpoint.rpc.client.WriteFailFutureListener;
 import com.navercorp.pinpoint.rpc.packet.ClientClosePacket;
@@ -51,7 +49,7 @@ import com.navercorp.pinpoint.rpc.packet.stream.StreamResponsePacket;
  */
 public class PacketDecoder extends FrameDecoder {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final WriteFailFutureListener pongWriteFutureListener = new WriteFailFutureListener(logger, "pong write fail.", "pong write success.");
 
     @Override
@@ -86,22 +84,14 @@ public class PacketDecoder extends FrameDecoder {
                 return readControlClientClose(packetType, buffer);
             case PacketType.CONTROL_SERVER_CLOSE:
                 return readControlServerClose(packetType, buffer);
-            case PacketType.CONTROL_PING_SIMPLE:
-                PingSimplePacket pingPacket = (PingSimplePacket) readPing(packetType, buffer);
-                if (pingPacket == PingSimplePacket.PING_PACKET) {
-                    sendPong(channel);
-                    return null;
-                }
-            case PacketType.CONTROL_PING_PAYLOAD:
-                return  readPayloadPing(packetType, buffer);
             case PacketType.CONTROL_PING:
-                PingPacket legacyPingPacket = (PingPacket) readLegacyPing(packetType, buffer);
-                if (legacyPingPacket == PingPacket.PING_PACKET) {
+                PingPacket pingPacket = (PingPacket) readPing(packetType, buffer);
+                if (pingPacket == PingPacket.PING_PACKET) {
                     sendPong(channel);
                     // just drop ping
                     return null;
                 }
-                return legacyPingPacket;
+                return pingPacket;
             case PacketType.CONTROL_PONG:
                 logger.debug("receive pong. {}", channel);
                 readPong(packetType, buffer);
@@ -126,82 +116,74 @@ public class PacketDecoder extends FrameDecoder {
     }
 
 
-    Object readControlClientClose(short packetType, ChannelBuffer buffer) {
+    private Object readControlClientClose(short packetType, ChannelBuffer buffer) {
         return ClientClosePacket.readBuffer(packetType, buffer);
     }
 
-    Object readControlServerClose(short packetType, ChannelBuffer buffer) {
+    private Object readControlServerClose(short packetType, ChannelBuffer buffer) {
         return ServerClosePacket.readBuffer(packetType, buffer);
     }
 
-    Object readPong(short packetType, ChannelBuffer buffer) {
+    private Object readPong(short packetType, ChannelBuffer buffer) {
         return PongPacket.readBuffer(packetType, buffer);
     }
 
-    Object readPing(short packetType, ChannelBuffer buffer) {
-        return PingSimplePacket.readBuffer(packetType, buffer);
-    }
-
-    Object readPayloadPing(short packetType, ChannelBuffer buffer) {
-        return PingPayloadPacket.readBuffer(packetType, buffer);
-    }
-
-    @Deprecated
-    Object readLegacyPing(short packetType, ChannelBuffer buffer) {
+    private Object readPing(short packetType, ChannelBuffer buffer) {
         return PingPacket.readBuffer(packetType, buffer);
     }
 
-    Object readSend(short packetType, ChannelBuffer buffer) {
+
+    private Object readSend(short packetType, ChannelBuffer buffer) {
         return SendPacket.readBuffer(packetType, buffer);
     }
 
 
-    Object readRequest(short packetType, ChannelBuffer buffer) {
+    private Object readRequest(short packetType, ChannelBuffer buffer) {
         return RequestPacket.readBuffer(packetType, buffer);
     }
 
-    Object readResponse(short packetType, ChannelBuffer buffer) {
+    private Object readResponse(short packetType, ChannelBuffer buffer) {
         return ResponsePacket.readBuffer(packetType, buffer);
     }
 
 
 
-    Object readStreamCreate(short packetType, ChannelBuffer buffer) {
+    private Object readStreamCreate(short packetType, ChannelBuffer buffer) {
         return StreamCreatePacket.readBuffer(packetType, buffer);
     }
 
 
-    Object readStreamCreateSuccess(short packetType, ChannelBuffer buffer) {
+    private Object readStreamCreateSuccess(short packetType, ChannelBuffer buffer) {
         return StreamCreateSuccessPacket.readBuffer(packetType, buffer);
     }
 
-    Object readStreamCreateFail(short packetType, ChannelBuffer buffer) {
+    private Object readStreamCreateFail(short packetType, ChannelBuffer buffer) {
         return StreamCreateFailPacket.readBuffer(packetType, buffer);
     }
 
-    Object readStreamData(short packetType, ChannelBuffer buffer) {
+    private Object readStreamData(short packetType, ChannelBuffer buffer) {
         return StreamResponsePacket.readBuffer(packetType, buffer);
     }
     
-    Object readStreamPong(short packetType, ChannelBuffer buffer) {
+    private Object readStreamPong(short packetType, ChannelBuffer buffer) {
         return StreamPongPacket.readBuffer(packetType, buffer);
     }
 
-    Object readStreamPing(short packetType, ChannelBuffer buffer) {
+    private Object readStreamPing(short packetType, ChannelBuffer buffer) {
         return StreamPingPacket.readBuffer(packetType, buffer);
     }
 
 
 
-    Object readStreamClose(short packetType, ChannelBuffer buffer) {
+    private Object readStreamClose(short packetType, ChannelBuffer buffer) {
         return StreamClosePacket.readBuffer(packetType, buffer);
     }
 
-    Object readEnableWorker(short packetType, ChannelBuffer buffer) {
+    private Object readEnableWorker(short packetType, ChannelBuffer buffer) {
         return ControlHandshakePacket.readBuffer(packetType, buffer);
     }
 
-    Object readEnableWorkerConfirm(short packetType, ChannelBuffer buffer) {
+    private Object readEnableWorkerConfirm(short packetType, ChannelBuffer buffer) {
         return ControlHandshakeResponsePacket.readBuffer(packetType, buffer);
     }
 

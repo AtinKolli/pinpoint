@@ -16,8 +16,6 @@
 
 package com.navercorp.pinpoint.collector.cluster.route;
 
-import com.navercorp.pinpoint.collector.cluster.route.filter.RouteFilter;
-
 public interface RouteFilterChain<T extends RouteEvent> {
 
     void addLast(RouteFilter<T> filter);

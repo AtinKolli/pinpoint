@@ -16,30 +16,27 @@
 
 package com.navercorp.pinpoint.common.util;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.navercorp.pinpoint.common.util.ThreadMXBeanUtils;
 
 import java.lang.management.ThreadInfo;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
 public class ThreadMXBeanUtilsTest {
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     @Test
-    public void testName() {
+    public void testName() throws Exception {
         ThreadInfo[] threadInfos = ThreadMXBeanUtils.dumpAllThread();
 
-        Assertions.assertNotNull(threadInfos);
+        Assert.assertNotNull(threadInfos);
         logger.trace("thread:{}", Arrays.toString(threadInfos));
-    }
-
-    @Test
-    public void testOption() {
-        final String option = ThreadMXBeanUtils.getOption();
-        logger.debug("ThreadMXBean option:{}", option);
     }
 
     @Test
@@ -47,25 +44,25 @@ public class ThreadMXBeanUtilsTest {
 
         String threadName = "ThreadMXBeanUtils-test-thread";
 
-        Assertions.assertFalse(ThreadMXBeanUtils.findThreadName(threadName));
+        Assert.assertFalse(ThreadMXBeanUtils.findThreadName(threadName));
 
         WaitingRunnable waiting = new WaitingRunnable();
         Thread thread = new Thread(waiting, threadName);
         thread.start();
 
-        Assertions.assertTrue(ThreadMXBeanUtils.findThreadName(threadName));
+        Assert.assertTrue(ThreadMXBeanUtils.findThreadName(threadName));
 
         waiting.stop();
         try {
             thread.join(2000);
         } catch (InterruptedException e) {
-            Assertions.fail();
+            Assert.fail();
         }
 
-        Assertions.assertFalse(ThreadMXBeanUtils.findThreadName(threadName));
+        Assert.assertFalse(ThreadMXBeanUtils.findThreadName(threadName));
     }
 
-    private static class WaitingRunnable implements Runnable {
+    private class WaitingRunnable implements Runnable {
 
         private final CountDownLatch latch = new CountDownLatch(1);
 

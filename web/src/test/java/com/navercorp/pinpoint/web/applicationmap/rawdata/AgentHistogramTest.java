@@ -17,43 +17,44 @@
 package com.navercorp.pinpoint.web.applicationmap.rawdata;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.navercorp.pinpoint.common.server.util.json.Jackson;
-import com.navercorp.pinpoint.common.server.util.json.TypeRef;
-import com.navercorp.pinpoint.common.trace.ServiceType;
+import com.navercorp.pinpoint.common.ServiceType;
 import com.navercorp.pinpoint.web.applicationmap.histogram.TimeHistogram;
+import com.navercorp.pinpoint.web.applicationmap.rawdata.AgentHistogram;
 import com.navercorp.pinpoint.web.vo.Application;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+
+import org.junit.Assert;
+
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.HashMap;
 
 /**
  * @author emeroad
  */
 public class AgentHistogramTest {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final ObjectMapper mapper = Jackson.newMapper();
+    private ObjectMapper mapper = new ObjectMapper();
     @Test
-    public void testDeepCopy() {
+    public void testDeepCopy() throws Exception {
         AgentHistogram agentHistogram = new AgentHistogram(new Application("test", ServiceType.STAND_ALONE));
         TimeHistogram histogram = new TimeHistogram(ServiceType.STAND_ALONE, 0);
-        histogram.addCallCount(ServiceType.STAND_ALONE.getHistogramSchema().getFastErrorSlot().getSlotTime(), 1);
+        histogram.addCallCount(ServiceType.STAND_ALONE.getHistogramSchema().getErrorSlot().getSlotTime(), 1);
         agentHistogram.addTimeHistogram(histogram);
 
         AgentHistogram copy = new AgentHistogram(agentHistogram);
-        Assertions.assertEquals(copy.getHistogram().getTotalErrorCount(), 1);
+        Assert.assertEquals(copy.getHistogram().getErrorCount(), 1);
 
         TimeHistogram histogram2 = new TimeHistogram(ServiceType.STAND_ALONE, 0);
-        histogram2.addCallCount(ServiceType.STAND_ALONE.getHistogramSchema().getFastErrorSlot().getSlotTime(), 2);
+        histogram2.addCallCount(ServiceType.STAND_ALONE.getHistogramSchema().getErrorSlot().getSlotTime(), 2);
         agentHistogram.addTimeHistogram(histogram2);
-        Assertions.assertEquals(agentHistogram.getHistogram().getTotalErrorCount(), 3);
+        Assert.assertEquals(agentHistogram.getHistogram().getErrorCount(), 3);
 
-        Assertions.assertEquals(copy.getHistogram().getTotalErrorCount(), 1);
+        Assert.assertEquals(copy.getHistogram().getErrorCount(), 1);
 
     }
 
@@ -62,38 +63,37 @@ public class AgentHistogramTest {
         // compatibility test for changing to Jackson
         AgentHistogram agentHistogram = new AgentHistogram(new Application("test", ServiceType.STAND_ALONE));
         TimeHistogram histogram = new TimeHistogram(ServiceType.STAND_ALONE, 0);
-        histogram.addCallCount(ServiceType.STAND_ALONE.getHistogramSchema().getFastErrorSlot().getSlotTime(), 1);
+        histogram.addCallCount(ServiceType.STAND_ALONE.getHistogramSchema().getErrorSlot().getSlotTime(), 1);
         agentHistogram.addTimeHistogram(histogram);
 
         AgentHistogram copy = new AgentHistogram(agentHistogram);
         logger.debug(copy.getHistogram().toString());
-        Assertions.assertEquals(copy.getHistogram().getTotalErrorCount(), 1);
+        Assert.assertEquals(copy.getHistogram().getErrorCount(), 1);
 
         TimeHistogram histogram2 = new TimeHistogram(ServiceType.STAND_ALONE, 0);
-        histogram2.addCallCount(ServiceType.STAND_ALONE.getHistogramSchema().getFastErrorSlot().getSlotTime(), 2);
+        histogram2.addCallCount(ServiceType.STAND_ALONE.getHistogramSchema().getErrorSlot().getSlotTime(), 2);
         agentHistogram.addTimeHistogram(histogram2);
-        Assertions.assertEquals(agentHistogram.getHistogram().getTotalErrorCount(), 3);
+        Assert.assertEquals(agentHistogram.getHistogram().getErrorCount(), 3);
 
         String callJson = mapper.writeValueAsString(agentHistogram);
         String before = originalJson(agentHistogram);
         logger.debug("callJson:{}", callJson);
-
-        Map<String, Object> callJsonHashMap = mapper.readValue(callJson, TypeRef.map());
-        logger.debug("BEFORE:{}", before);
-        Map<String, Object> beforeJsonHashMap = mapper.readValue(before, TypeRef.map());
+        HashMap callJsonHashMap = mapper.readValue(callJson, HashMap.class);
+        logger.debug("before:{}", before);
+        HashMap beforeJsonHashMap = mapper.readValue(before, HashMap.class);
         logger.debug("{} {}", callJsonHashMap, beforeJsonHashMap);
-        Assertions.assertEquals(callJsonHashMap, beforeJsonHashMap);
+        Assert.assertEquals(callJsonHashMap, beforeJsonHashMap);
     }
 
 
     public String originalJson(AgentHistogram agentHistogram) throws IOException {
         //old implementation
         StringBuilder sb = new StringBuilder();
-        sb.append('{');
+        sb.append("{");
         sb.append("\"name\":\"").append(agentHistogram.getId()).append("\",");
         String histogram = mapper.writeValueAsString(agentHistogram.getHistogram());
         sb.append("\"histogram\":").append(histogram);
-        sb.append('}');
+        sb.append("}");
         return sb.toString();
     }
 }

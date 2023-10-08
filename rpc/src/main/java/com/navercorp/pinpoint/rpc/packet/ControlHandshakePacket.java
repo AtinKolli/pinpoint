@@ -22,22 +22,20 @@ import org.jboss.netty.buffer.ChannelBuffers;
 /**
  * @author koo.taejin
  */
-public class ControlHandshakePacket extends BasicPacket {
+public class ControlHandshakePacket extends ControlPacket {
 
-    private final int requestId;
+    public ControlHandshakePacket(byte[] payload) {
+        super(payload);
+    }
 
     public ControlHandshakePacket(int requestId, byte[] payload) {
         super(payload);
-        this.requestId = requestId;
+        setRequestId(requestId);
     }
 
     @Override
     public short getPacketType() {
         return PacketType.CONTROL_HANDSHAKE;
-    }
-
-    public int getRequestId() {
-        return requestId;
     }
 
     @Override
@@ -63,7 +61,8 @@ public class ControlHandshakePacket extends BasicPacket {
         if (payload == null) {
             return null;
         }
-        final ControlHandshakePacket helloPacket = new ControlHandshakePacket(messageId, payload.array());
+        final ControlHandshakePacket helloPacket = new ControlHandshakePacket(payload.array());
+        helloPacket.setRequestId(messageId);
         return helloPacket;
     }
 

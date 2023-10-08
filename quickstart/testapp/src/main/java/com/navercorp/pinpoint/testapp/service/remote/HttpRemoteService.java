@@ -29,11 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Component
 public class HttpRemoteService implements RemoteService {
 
-    private final ObjectMapper mapper;
-
-    public HttpRemoteService(ObjectMapper mapper) {
-        this.mapper = Objects.requireNonNull(mapper, "mapper");
-    }
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public <R> R get(String url, Class<R> responseType) throws Exception {
@@ -96,6 +92,7 @@ public class HttpRemoteService implements RemoteService {
         CloseableHttpResponse response = httpclient.execute(httpMethod);
         HttpEntity entity = response.getEntity();
 
-        return mapper.readValue(entity.getContent(), responseType);
+        return objectMapper.readValue(entity.getContent(), responseType);
     }
+
 }

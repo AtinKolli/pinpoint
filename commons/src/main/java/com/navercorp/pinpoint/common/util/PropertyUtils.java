@@ -16,23 +16,14 @@
 
 package com.navercorp.pinpoint.common.util;
 
-
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Objects;
+import java.io.*;
 import java.util.Properties;
 
 /**
  * @author emeroad
  */
 public final class PropertyUtils {
-    public static final String DEFAULT_ENCODING = StandardCharsets.UTF_8.name();
+    public static final String DEFAULT_ENCODING = "UTF-8";
 
     private static final ClassLoaderUtils.ClassLoaderCallable CLASS_LOADER_CALLABLE = new ClassLoaderUtils.ClassLoaderCallable() {
         @Override
@@ -41,43 +32,30 @@ public final class PropertyUtils {
         }
     };
 
-    public interface InputStreamFactory {
+    public static interface InputStreamFactory {
         InputStream openInputStream() throws IOException;
     }
 
     private PropertyUtils() {
     }
 
-    public static Properties loadProperty(final InputStream inputStream) throws IOException {
-        Objects.requireNonNull(inputStream, "inputStream");
-
+    public static Properties loadProperty(final String filePath) throws IOException {
+        if (filePath == null) {
+            throw new NullPointerException("filePath must not be null");
+        }
         final InputStreamFactory inputStreamFactory = new InputStreamFactory() {
             @Override
             public InputStream openInputStream() throws IOException {
-                return inputStream;
+                return new FileInputStream(filePath);
             }
         };
         return loadProperty(new Properties(), inputStreamFactory, DEFAULT_ENCODING);
     }
 
-    public static Properties loadProperty(final String filePath) throws IOException {
-        Objects.requireNonNull(filePath, "filePath");
-
-        final InputStreamFactory inputStreamFactory = new FileInputStreamFactory(filePath);
-        return loadProperty(new Properties(), inputStreamFactory, DEFAULT_ENCODING);
-    }
-
-    public static Properties loadProperty(Properties properties, final Path filePath) throws IOException {
-        Objects.requireNonNull(filePath, "filePath");
-
-        InputStreamFactory streamFactory = new PathFactory(filePath);
-        return loadProperty(properties, streamFactory, DEFAULT_ENCODING);
-    }
-
-
     public static Properties loadPropertyFromClassPath(final String classPath) throws IOException {
-        Objects.requireNonNull(classPath, "classPath");
-
+        if (classPath == null) {
+            throw new NullPointerException("classPath must not be null");
+        }
         final InputStreamFactory inputStreamFactory = new InputStreamFactory() {
             @Override
             public InputStream openInputStream() throws IOException {
@@ -88,8 +66,9 @@ public final class PropertyUtils {
     }
 
     public static Properties loadPropertyFromClassLoader(final ClassLoader classLoader, final String classPath) throws IOException {
-        Objects.requireNonNull(classLoader, "classLoader");
-
+        if (classLoader == null) {
+            throw new NullPointerException("classLoader must not be null");
+        }
         final InputStreamFactory inputStreamFactory = new InputStreamFactory() {
             @Override
             public InputStream openInputStream() throws IOException {
@@ -101,10 +80,15 @@ public final class PropertyUtils {
 
 
     public static Properties loadProperty(Properties properties, InputStreamFactory inputStreamFactory, String encoding) throws IOException {
-        Objects.requireNonNull(properties, "properties");
-        Objects.requireNonNull(inputStreamFactory, "inputStreamFactory");
-        Objects.requireNonNull(encoding, "encoding");
-
+        if (properties == null) {
+            throw new NullPointerException("properties must not be null");
+        }
+        if (inputStreamFactory == null) {
+            throw new NullPointerException("inputStreamFactory must not be null");
+        }
+        if (encoding == null) {
+            throw new NullPointerException("encoding must not be null");
+        }
         InputStream in = null;
         Reader reader = null;
         try {
@@ -112,35 +96,20 @@ public final class PropertyUtils {
             reader = new InputStreamReader(in, encoding);
             properties.load(reader);
         } finally {
-            IOUtils.closeQuietly(reader);
-            IOUtils.closeQuietly(in);
+            close(reader);
+            close(in);
         }
         return properties;
     }
 
-    public static class FileInputStreamFactory implements InputStreamFactory {
-        private final String filePath;
-
-        public FileInputStreamFactory(String filePath) {
-            this.filePath = Objects.requireNonNull(filePath, "filePath");
-        }
-
-        @Override
-        public InputStream openInputStream() throws IOException {
-            return new FileInputStream(filePath);
+    private static void close(Closeable closeable) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (IOException ignore) {
+                // skip
+            }
         }
     }
 
-    public static class PathFactory implements InputStreamFactory {
-        private final Path filePath;
-
-        public PathFactory(Path filePath) {
-            this.filePath = Objects.requireNonNull(filePath, "filePath");
-        }
-
-        @Override
-        public InputStream openInputStream() throws IOException {
-            return Files.newInputStream(filePath);
-        }
-    }
 }

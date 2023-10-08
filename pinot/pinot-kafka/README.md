@@ -1,1 +1,0 @@
-# pinpoint-pinot-kafka

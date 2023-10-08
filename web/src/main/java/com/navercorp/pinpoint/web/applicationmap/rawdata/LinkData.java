@@ -17,11 +17,11 @@
 package com.navercorp.pinpoint.web.applicationmap.rawdata;
 
 
-import com.navercorp.pinpoint.common.trace.ServiceType;
-import com.navercorp.pinpoint.web.util.TimeWindow;
+import com.navercorp.pinpoint.common.ServiceType;
 import com.navercorp.pinpoint.web.vo.Application;
 
-import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * application caller/callee relationship stored in DB
@@ -30,22 +30,39 @@ import java.util.Objects;
  * @author emeroad
  */
 public class LinkData {
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final Application fromApplication;
     private final Application toApplication;
 
     private LinkCallDataMap linkCallDataMap;
-    private final TimeWindow timeWindow;
 
     public LinkData(Application fromApplication, Application toApplication) {
-        this(fromApplication, toApplication, null);
-    }
-    public LinkData(Application fromApplication, Application toApplication, TimeWindow timeWindow) {
-        this.fromApplication = Objects.requireNonNull(fromApplication, "fromApplication");
-        this.toApplication = Objects.requireNonNull(toApplication, "toApplication");
+        if (fromApplication == null) {
+            throw new NullPointerException("fromApplication must not be null");
+        }
+        if (toApplication == null) {
+            throw new NullPointerException("toApplication must not be null");
+        }
 
-        this.timeWindow = timeWindow;
-        this.linkCallDataMap = new LinkCallDataMap(timeWindow);
+        this.fromApplication = fromApplication;
+        this.toApplication = toApplication;
+
+        this.linkCallDataMap = new LinkCallDataMap();
+    }
+
+    // deliberately not implemented as a copy constructor
+    public LinkData(Application fromApplication, Application toApplication, LinkCallDataMap linkCallDataMap) {
+        if (fromApplication == null) {
+            throw new NullPointerException("fromApplication must not be null");
+        }
+        if (toApplication == null) {
+            throw new NullPointerException("toApplication must not be null");
+        }
+        this.fromApplication = fromApplication;
+        this.toApplication = toApplication;
+
+        this.linkCallDataMap = linkCallDataMap;
     }
 
     /**
@@ -56,13 +73,14 @@ public class LinkData {
      * @param count
      */
     public void addLinkData(String callerAgentId, ServiceType callerServiceTypeCode, String hostname, ServiceType serviceTypeCode, long timestamp, short slot, long count) {
-        Objects.requireNonNull(hostname, "hostname");
-
+        if (hostname == null) {
+            throw new NullPointerException("hostname must not be null");
+        }
         this.linkCallDataMap.addCallData(callerAgentId, callerServiceTypeCode, hostname, serviceTypeCode, timestamp, slot, count);
     }
 
     public void resetLinkData() {
-        this.linkCallDataMap = new LinkCallDataMap(timeWindow);
+        this.linkCallDataMap = new LinkCallDataMap();
     }
 
 
@@ -74,9 +92,6 @@ public class LinkData {
         return this.toApplication;
     }
 
-    public void setLinkCallDataMap(LinkCallDataMap linkCallDataMap) {
-        this.linkCallDataMap = linkCallDataMap;
-    }
 
     public LinkCallDataMap getLinkCallDataMap() {
         return  this.linkCallDataMap;
@@ -91,22 +106,14 @@ public class LinkData {
     }
 
     public void add(final LinkData linkData) {
-        Objects.requireNonNull(linkData, "linkData");
-
+        if (linkData == null) {
+            throw new NullPointerException("linkData must not be null");
+        }
         if (!this.equals(linkData)) {
             throw new IllegalArgumentException("Can't merge with different link.");
         }
         final LinkCallDataMap target = linkData.linkCallDataMap;
         this.linkCallDataMap.addLinkDataMap(target);
-    }
-
-    // test api
-    public long getTotalCount() {
-        long totalCount = 0;
-        for (LinkCallData linkCallData : linkCallDataMap.getLinkDataList()) {
-            totalCount += linkCallData.getTotalCount();
-        }
-        return totalCount;
     }
 
     @Override

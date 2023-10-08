@@ -17,26 +17,26 @@
 package com.navercorp.pinpoint.web.view;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.navercorp.pinpoint.common.server.util.json.Jackson;
-import com.navercorp.pinpoint.common.server.util.json.TypeRef;
-import com.navercorp.pinpoint.common.trace.HistogramSchema;
-import com.navercorp.pinpoint.common.trace.ServiceType;
+import com.navercorp.pinpoint.common.HistogramSchema;
+import com.navercorp.pinpoint.common.ServiceType;
 import com.navercorp.pinpoint.web.applicationmap.histogram.Histogram;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
 
-import java.util.Map;
+import org.junit.Assert;
+
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.HashMap;
 
 /**
  * @author emeroad
  */
 public class HistogramSerializerTest {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final ObjectMapper objectMapper = Jackson.newMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
 
     @Test
@@ -47,17 +47,17 @@ public class HistogramSerializerTest {
         original.addCallCount(schema.getNormalSlot().getSlotTime(), 2);
         original.addCallCount(schema.getSlowSlot().getSlotTime(), 3);
         original.addCallCount(schema.getVerySlowSlot().getSlotTime(), 4);
-        original.addCallCount(schema.getNormalErrorSlot().getSlotTime(), 5);
+        original.addCallCount(schema.getErrorSlot().getSlotTime(), 5);
 
         String jacksonJson = objectMapper.writeValueAsString(original);
-        Map<String, Object> objectMapperHashMap = objectMapper.readValue(jacksonJson, TypeRef.map());
+        HashMap objectMapperHashMap = objectMapper.readValue(jacksonJson, HashMap.class);
 
         logger.debug(jacksonJson);
 
         String internalJson = internalJson(original);
-        Map<String, Object> hashMap = objectMapper.readValue(internalJson, TypeRef.map());
+        HashMap hashMap = objectMapper.readValue(internalJson, HashMap.class);
 
-        Assertions.assertEquals(objectMapperHashMap, hashMap);
+        Assert.assertEquals(objectMapperHashMap, hashMap);
     }
 
     /**
@@ -80,7 +80,7 @@ public class HistogramSerializerTest {
         // very slow means 0, so should use slow
         appendSlotTimeAndCount(sb, histogramSchema.getVerySlowSlot().getSlotName(), histogram.getVerySlowCount());
         sb.append(", ");
-        appendSlotTimeAndCount(sb, histogramSchema.getErrorSlot().getSlotName(), histogram.getTotalErrorCount());
+        appendSlotTimeAndCount(sb, histogramSchema.getErrorSlot().getSlotName(), histogram.getErrorCount());
         sb.append(" }");
 
         return sb.toString();

@@ -16,74 +16,223 @@
 
 package com.navercorp.pinpoint.web.vo.callstacks;
 
-import com.navercorp.pinpoint.common.server.bo.MethodTypeEnum;
+import com.navercorp.pinpoint.common.ServiceType;
 
 /**
  * each stack
- *
+ * 
  * @author netspider
  * @author emeroad
- * @author jaehong.kim
- * @author minwoo.jung
  */
-public interface Record {
-    int getId();
+public class Record {
+    private final int tab;
+    private final int id;
+    private final int parentId;
+    private final boolean method;
 
-    int getParentId();
+    private final String title;
+    private String simpleClassName = "";
+    private String fullApiDescription = "";
 
-    int getTab();
+    private final String arguments;
+    private final long begin;
+    private final long elapsed;
+    private final long gap;
+    private final String agent;
+    private final String applicationName;
+    private final ServiceType serviceType;
+    private final String destinationId;
+    private final boolean excludeFromTimeline;
 
-    String getTabspace();
+    private final String transactionId;
+    private final long spanId;
+    
+    private boolean focused;
+    private boolean hasChild;
+    private boolean hasException;
+    private String logPageUrl;
+    private String logButtonName;
+    
+    
 
-    boolean isMethod();
+    public Record(int tab, int id, int parentId, boolean method, String title, String arguments, long begin, long elapsed, long gap, String agent, String applicationName, ServiceType serviceType, String destinationId, boolean hasChild, boolean hasException, String transactionId, long spanId) {
+        this.tab = tab;
+        this.id = id;
+        this.parentId = parentId;
+        this.method = method;
 
-    String getTitle();
+        this.title = title;
+        this.arguments = arguments;
+        this.begin = begin;
+        this.elapsed = elapsed;
+        this.gap = gap;
+        this.agent = agent;
 
-    String getArguments();
+        this.applicationName = applicationName;
+        this.serviceType = serviceType;
+        this.destinationId = destinationId;
 
-    long getBegin();
+        this.excludeFromTimeline = serviceType == null || serviceType.isInternalMethod();
+        this.hasChild = hasChild;
+        this.hasException = hasException;
+        
+        this.transactionId = transactionId;
+        this.spanId = spanId;
+    }
 
-    long getElapsed();
+    public int getId() {
+        return id;
+    }
 
-    long getGap();
+    public int getParentId() {
+        return parentId;
+    }
 
-    String getAgentId();
+    public int getTab() {
+        return tab;
+    }
+    public String getTabspace() {
+        if(tab == 0) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for(int i=0; i< tab; i++) {
+            sb.append("&nbsp");
+        }
+        return sb.toString();
+    }
 
-    String getAgentName();
+    public boolean isMethod() {
+        return method;
+    }
 
-    String getApplicationName();
+    public String getTitle() {
+        return title;
+    }
 
-    String getApiType();
+    public String getArguments() {
+        return arguments;
+    }
 
-    boolean isExcludeFromTimeline();
+    public long getBegin() {
+        return begin;
+    }
 
-    String getSimpleClassName();
+    public long getElapsed() {
+        return elapsed;
+    }
 
-    void setSimpleClassName(String simpleClassName);
+    public long getGap() {
+        return gap;
+    }
 
-    String getFullApiDescription();
+    public String getAgent() {
+        return agent;
+    }
 
-    void setFullApiDescription(String fullApiDescription);
+    public String getApplicationName() {
+        return applicationName;
+    }
 
-    boolean isFocused();
+    public String getApiType() {
+        if (destinationId == null) {
+            if (serviceType == null) {
+                // no ServiceType when parameter
+                return "";
+            }
+            return serviceType.getDesc();
+        }
+        if (serviceType.isIncludeDestinationId()) {
+            return serviceType.getDesc() + "(" + destinationId + ")";
+        } else {
+            return serviceType.getDesc();
+        }
 
-    void setFocused(boolean focused);
+    }
 
-    boolean getHasChild();
+    public boolean isExcludeFromTimeline() {
+        return excludeFromTimeline;
+    }
 
-    boolean getHasException();
+    public String getSimpleClassName() {
+        return simpleClassName;
+    }
 
-    String getTransactionId();
+    public void setSimpleClassName(String simpleClassName) {
+        this.simpleClassName = simpleClassName;
+    }
 
-    long getSpanId();
+    public String getFullApiDescription() {
+        return fullApiDescription;
+    }
 
-    long getExecutionMilliseconds();
+    public void setFullApiDescription(String fullApiDescription) {
+        this.fullApiDescription = fullApiDescription;
+    }
 
-    MethodTypeEnum getMethodTypeEnum();
+    public boolean isFocused() {
+        return focused;
+    }
 
-    boolean isAuthorized();
+    public void setFocused(boolean focused) {
+        this.focused = focused;
+    }
 
-    int getLineNumber();
+    public boolean getHasChild() {
+        return hasChild;
+    }
+    
+    public boolean getHasException() {
+        return hasException;
+    }
+    
+    public String getTransactionId() {
+        return transactionId;
+    }
 
-    String getLocation();
+    public long getSpanId() {
+        return spanId;
+    }
+
+    public void setLogPageUrl(String logPageUrl) {
+        this.logPageUrl = logPageUrl;
+    }
+
+    public void setLogButtonName(String logButtonName) {
+        this.logButtonName = logButtonName;
+    }
+    
+    public String getLogPageUrl() {
+        return this.logPageUrl;
+    }
+
+    public String getLogButtonName() {
+        return this.logButtonName;
+    }
+
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("Record{");
+        sb.append("tab=").append(tab);
+        sb.append(", id=").append(id);
+        sb.append(", parentId=").append(parentId);
+        sb.append(", method=").append(method);
+        sb.append(", title='").append(title).append('\'');
+        sb.append(", simpleClassName='").append(simpleClassName).append('\'');
+        sb.append(", fullApiDescription='").append(fullApiDescription).append('\'');
+        sb.append(", arguments='").append(arguments).append('\'');
+        sb.append(", begin=").append(begin);
+        sb.append(", elapsed=").append(elapsed);
+        sb.append(", gap=").append(gap);
+        sb.append(", agent='").append(agent).append('\'');
+        sb.append(", applicationName='").append(applicationName).append('\'');
+        sb.append(", serviceType=").append(serviceType);
+        sb.append(", destinationId='").append(destinationId).append('\'');
+        sb.append(", excludeFromTimeline=").append(excludeFromTimeline);
+        sb.append(", focused=").append(focused);
+        sb.append(", hasChild=").append(hasChild);
+        sb.append('}');
+        return sb.toString();
+    }
 }

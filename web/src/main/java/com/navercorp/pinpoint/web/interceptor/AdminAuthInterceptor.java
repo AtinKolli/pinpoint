@@ -16,62 +16,37 @@
 
 package com.navercorp.pinpoint.web.interceptor;
 
-import com.navercorp.pinpoint.common.util.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.servlet.HandlerInterceptor;
-
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
 
 /**
  * FIXME temporary interceptor for admin operations.
  * 
  * @author hyungil.jeong
  */
-public class AdminAuthInterceptor implements HandlerInterceptor {
+public class AdminAuthInterceptor extends HandlerInterceptorAdapter {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
     
-    private final String password;
-
-    public AdminAuthInterceptor(String password) {
-        this.password = password;
-    }
-
+    @Value("#{pinpointWebProps['admin.password']}")
+    private String password;
+    
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         String requestUri = request.getRequestURI();
         String requestIp = request.getRemoteAddr();
         logger.info("{} called from {}", requestUri, requestIp);
-        if (StringUtils.isEmpty(password)) {
-            return true;
-        }
-        return checkAuthorization(request);
-    }
-
-    private boolean checkAuthorization(HttpServletRequest request) {
         String requestPassword = request.getParameter("password");
-        if (requestPassword == null) {
-            handleMissingPassword();
-            return false;
-        }
         if (password.equals(requestPassword)) {
             return true;
-        } else {
-            handleInvalidPassword();
-            return false;
         }
-    }
-
-    private void handleMissingPassword() {
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing password");
-    }
-
-    private void handleInvalidPassword() {
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid password");
+        response.sendRedirect("/");
+        return false;
     }
 
     

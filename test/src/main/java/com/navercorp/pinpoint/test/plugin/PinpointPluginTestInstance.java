@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright 2014 NAVER Corp.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,13 @@ import java.util.Scanner;
  *
  */
 public interface PinpointPluginTestInstance {
-    String getTestId();
-    List<String> getClassPath();
-    List<String> getVmArgs();
-    String getMainClass();
-    List<String> getAppArgs();
-    File getWorkingDirectory();
+    public String getTestId();
+    public List<String> getClassPath();
+    public List<String> getVmArgs();
+    public String getMainClass();
+    public List<String> getAppArgs();
+    public File getWorkingDirectory();
     
-    Scanner startTest() throws Throwable;
-    void endTest() throws Throwable;
+    public Scanner startTest(Process process) throws Throwable;
+    public void endTest(Process process) throws Throwable;
 }

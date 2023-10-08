@@ -16,264 +16,209 @@
 
 package com.navercorp.pinpoint.web.filter;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonSetter;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.navercorp.pinpoint.common.util.StringUtils;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.Objects;
+import org.apache.commons.lang.StringUtils;
 
 /**
- * @author emeroad
+ * 
  * @author netspider
- *
+ * 
  */
-@JsonDeserialize(using = FilterDescriptor.FilterDescriptorDeserializer.class)
 public class FilterDescriptor {
 
-    private final FromNode fromNode;
-    private final ToNode toNode;
-    private final SelfNode selfNode;
-    private final ResponseTime responseTime;
-    private final Option option;
+    /**
+     * from application name
+     */
+    private String fa = null;
 
+    /**
+     * from service type
+     */
+    private String fst = null;
 
-    public static class FilterDescriptorDeserializer extends JsonDeserializer<FilterDescriptor> {
-        @Override
-        public FilterDescriptor deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
-            JsonNode jsonNode = p.readValueAsTree();
+    /**
+     * to application name
+     */
+    private String ta = null;
 
-            FromNode fromNode = readValueAs(FromNode.class, jsonNode, p);
-            ToNode toNode = readValueAs(ToNode.class, jsonNode, p);
-            SelfNode selfNode = readValueAs(SelfNode.class, jsonNode, p);
-            ResponseTime responseTime= readValueAs(ResponseTime.class, jsonNode, p);
-            Option option = readValueAs(Option.class, jsonNode, p);
-            return new FilterDescriptor(fromNode, toNode, selfNode, responseTime, option);
-        }
+    /**
+     * to service type
+     */
+    private String tst = null;
 
-        private <T> T readValueAs(Class<T> valueType, JsonNode jsonNode, JsonParser p) throws IOException {
-            JsonParser traverse = jsonNode.traverse(p.getCodec());
-            return traverse.readValueAs(valueType);
-        }
-    }
+    /**
+     * response time from
+     */
+    private Long rf = null;
 
-    public FilterDescriptor(FromNode fromNode, ToNode toNode, SelfNode selfNode, ResponseTime responseTime, Option option) {
-        this.fromNode = Objects.requireNonNull(fromNode, "fromNode");
-        this.toNode = Objects.requireNonNull(toNode, "toNode");
-        this.selfNode = Objects.requireNonNull(selfNode, "self");
-        this.responseTime = Objects.requireNonNull(responseTime, "responseTime");
-        this.option = Objects.requireNonNull(option, "option");
-    }
+    /**
+     * response time to
+     */
+    private String rt = null;
 
-    @JsonIgnoreProperties(ignoreUnknown=true)
-    public static class Node {
-        private final String applicationName;
-        private final String serviceType ;
-        private final String agentId;
+    /**
+     * include exception
+     */
+    private Boolean ie = null;
 
-        public Node(String applicationName, String serviceType, String agentId) {
-            this.applicationName = applicationName;
-            this.serviceType = serviceType;
-            this.agentId = agentId;
-        }
+    /**
+     * requested url
+     */
+    private String url = null;
 
-        public String getApplicationName() {
-            return applicationName;
-        }
+    /**
+     * from agent name
+     */
+    private String fan = null;
 
-        public String getServiceType() {
-            return serviceType;
-        }
-
-        public String getAgentId() {
-            return agentId;
-        }
-
-        public boolean isValid() {
-            return StringUtils.hasLength(applicationName) && StringUtils.hasLength(serviceType);
-        }
-
-        @Override
-        public String toString() {
-            return this.getClass().getSimpleName()  + "{" +
-                    "applicationName='" + applicationName + '\'' +
-                    ", serviceType='" + serviceType + '\'' +
-                    ", agentId='" + agentId + '\'' +
-                    '}';
-        }
-    }
-
-    public static class FromNode extends Node {
-        @JsonCreator
-        public FromNode(@JsonProperty("fa") String applicationName,
-                        @JsonProperty("fst") String serviceType,
-                        @JsonProperty("fan") String agentId) {
-            super(applicationName, serviceType, agentId);
-        }
-    }
-
-    public static class ToNode extends Node {
-        /**
-         * to application
-         */
-        @JsonCreator
-        public ToNode(@JsonProperty("ta") String applicationName,
-                      @JsonProperty("tst") String serviceType,
-                      @JsonProperty("tan") String agentId) {
-            super(applicationName, serviceType, agentId);
-        }
-    }
-
-    public static class SelfNode extends Node {
-        /**
-         * self application
-         */
-        @JsonCreator
-        public SelfNode(@JsonProperty("a") String applicationName,
-                      @JsonProperty("st") String serviceType,
-                      @JsonProperty("an") String agentId) {
-            super(applicationName, serviceType, agentId);
-        }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown=true)
-    public static class ResponseTime {
-
-        private final Long fromResponseTime;
-        private final String toResponseTime;
-
-        public ResponseTime(@JsonProperty("rf") Long fromResponseTime,
-                            @JsonProperty("rt") String toResponseTime) {
-            this.fromResponseTime = fromResponseTime;
-            this.toResponseTime = toResponseTime;
-        }
-
-        public Long getFromResponseTime() {
-            return fromResponseTime;
-        }
-
-        public Long getToResponseTime() {
-            if (toResponseTime == null) {
-                return null;
-            } else if ("max".equals(toResponseTime)) {
-                return Long.MAX_VALUE;
-            } else {
-                return Long.valueOf(toResponseTime);
-            }
-        }
-
-        public String getRawToResponseTime() {
-            return toResponseTime;
-        }
-
-
-        public boolean isValid() {
-            return !((fromResponseTime == null && StringUtils.hasLength(toResponseTime)) || (fromResponseTime != null && StringUtils.isEmpty(toResponseTime)));
-        }
-
-        @Override
-        public String toString() {
-            return "ResponseTime{" +
-                    "fromResponseTime=" + fromResponseTime +
-                    ", toResponseTime='" + toResponseTime + '\'' +
-                    '}';
-        }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown=true)
-    public static class Option {
-
-        /**
-         * requested url
-         */
-        private String urlPattern = null;
-
-        /**
-         * include exception
-         */
-        private Boolean includeException = null;
-
-        public Option(@JsonSetter(value = "url") String urlPattern,
-                      @JsonSetter(value = "ie") Boolean includeException) {
-            this.urlPattern = decodeBase64(urlPattern);
-            this.includeException = includeException;
-        }
-
-        public Boolean getIncludeException() {
-            return includeException;
-        }
-
-
-        public String getUrlPattern() {
-            return urlPattern;
-        }
-
-        @Override
-        public String toString() {
-            return "Option{" +
-                    "urlPattern='" + urlPattern + '\'' +
-                    ", includeException=" + includeException +
-                    '}';
-        }
-    }
-
+    /**
+     * to agent name
+     */
+    private String tan = null;
 
     public boolean isValid() {
-        return isValidNodeInfo() && responseTime.isValid();
+        return isValidFromToInfo() && isValidFromToResponseTime();
     }
 
-    public boolean isValidNodeInfo() {
-        return this.fromNode.isValid() || this.toNode.isValid() || this.selfNode.isValid();
+    public boolean isValidFromToInfo() {
+        return !(StringUtils.isEmpty(fa) || StringUtils.isEmpty(fst) || StringUtils.isEmpty(ta) || StringUtils.isEmpty(tst));
     }
 
-    public FromNode getFromNode() {
-        return fromNode;
+    public boolean isValidFromToResponseTime() {
+        return !((rf == null && !StringUtils.isEmpty(rt)) || (rf != null && StringUtils.isEmpty(rt)));
     }
 
-    public ToNode getToNode() {
-        return toNode;
+    public boolean isSetUrl() {
+        return !StringUtils.isEmpty(url);
     }
 
-    public SelfNode getSelfNode() {
-        return selfNode;
+    public String getFromApplicationName() {
+        return fa;
     }
 
-    public ResponseTime getResponseTime() {
-        return responseTime;
+    public String getFromServiceType() {
+        return fst;
     }
 
-    public Option getOption() {
-        return option;
+    public String getToApplicationName() {
+        return ta;
     }
 
-    private static String decodeBase64(String urlPattern) {
-        if (urlPattern == null) {
+    public String getToServiceType() {
+        return tst;
+    }
+
+    public Long getResponseFrom() {
+        return rf;
+    }
+
+    public Long getResponseTo() {
+        if (rt == null) {
             return null;
+        } else if ("max".equals(rt)) {
+            return Long.MAX_VALUE;
+        } else {
+            return Long.valueOf(rt);
         }
-        Base64.Decoder urlDecoder = Base64.getUrlDecoder();
-        byte[] decode = urlDecoder.decode(urlPattern);
-        return new String(decode, StandardCharsets.ISO_8859_1);
     }
 
+    public Boolean getIncludeException() {
+        return ie;
+    }
+
+    public String getUrlPattern() {
+        return url;
+    }
+
+    public String getFa() {
+        return fa;
+    }
+
+    public void setFa(String fa) {
+        this.fa = fa;
+    }
+
+    public String getFst() {
+        return fst;
+    }
+
+    public void setFst(String fst) {
+        this.fst = fst;
+    }
+
+    public String getTa() {
+        return ta;
+    }
+
+    public void setTa(String ta) {
+        this.ta = ta;
+    }
+
+    public String getTst() {
+        return tst;
+    }
+
+    public void setTst(String tst) {
+        this.tst = tst;
+    }
+
+    public Long getRf() {
+        return rf;
+    }
+
+    public void setRf(Long rf) {
+        this.rf = rf;
+    }
+
+    public String getRt() {
+        return rt;
+    }
+
+    public void setRt(String rt) {
+        this.rt = rt;
+    }
+
+    public Boolean getIe() {
+        return ie;
+    }
+
+    public void setIe(Boolean ie) {
+        this.ie = ie;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    public String getFan() {
+        return fan;
+    }
+
+    public String getFromAgentName() {
+        return fan;
+    }
+
+    public void setFan(String fan) {
+        this.fan = fan;
+    }
+
+    public String getTan() {
+        return tan;
+    }
+
+    public String getToAgentName() {
+        return tan;
+    }
+
+    public void setTan(String tan) {
+        this.tan = tan;
+    }
 
     @Override
     public String toString() {
-        return "FilterDescriptor{" +
-                "fromNode=" + fromNode +
-                ", toNode=" + toNode +
-                ", selfNode=" + selfNode +
-                ", responseTime=" + responseTime +
-                ", option=" + option +
-                '}';
+        return "FilterDescriptor [fa=" + fa + ", fst=" + fst + ", ta=" + ta + ", tst=" + tst + ", rf=" + rf + ", rt=" + rt + ", ie=" + ie + ", url=" + url + ", fan=" + fan + ", tan=" + tan + "]";
     }
 }

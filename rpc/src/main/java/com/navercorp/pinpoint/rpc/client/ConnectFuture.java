@@ -20,22 +20,22 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author Taejin Koo
  */
 public class ConnectFuture {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private static final AtomicReferenceFieldUpdater<ConnectFuture, Result> FIELD_UPDATER = AtomicReferenceFieldUpdater.newUpdater(ConnectFuture.class, Result.class, "result");
 
     private final CountDownLatch latch;
     private volatile Result result;
 
-    public enum Result {
+    public static enum Result {
         SUCCESS, FAIL
     }
 
@@ -65,13 +65,12 @@ public class ConnectFuture {
     }
 
     public void awaitUninterruptibly() {
-        while (getResult() == null) {
+        while (true) {
             try {
                 await();
                 return;
             } catch (InterruptedException e) {
                 logger.debug(e.getMessage(), e);
-                Thread.currentThread().interrupt();
             }
         }
     }

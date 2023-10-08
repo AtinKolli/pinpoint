@@ -16,8 +16,11 @@
 
 package com.navercorp.pinpoint.rpc.util;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+
+import org.junit.Test;
+
+import com.navercorp.pinpoint.rpc.util.IDGenerator;
 
 public class IDGeneratorTest {
 
@@ -25,15 +28,15 @@ public class IDGeneratorTest {
     public void generatorTest() {
         IDGenerator generator = new IDGenerator();
 
-        Assertions.assertEquals(1, generator.generate());
-        Assertions.assertEquals(2, generator.generate());
-        Assertions.assertEquals(3, generator.generate());
+        Assert.assertEquals(1, generator.generate());
+        Assert.assertEquals(2, generator.generate());
+        Assert.assertEquals(3, generator.generate());
 
         generator = new IDGenerator(2, 3);
 
-        Assertions.assertEquals(2, generator.generate());
-        Assertions.assertEquals(5, generator.generate());
-        Assertions.assertEquals(8, generator.generate());
+        Assert.assertEquals(2, generator.generate());
+        Assert.assertEquals(5, generator.generate());
+        Assert.assertEquals(8, generator.generate());
     }
 
 }

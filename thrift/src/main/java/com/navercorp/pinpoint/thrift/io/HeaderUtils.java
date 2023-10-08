@@ -16,33 +16,24 @@
 
 package com.navercorp.pinpoint.thrift.io;
 
-import com.navercorp.pinpoint.io.header.Header;
-import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TProtocol;
-
 /**
  * @author emeroad
  */
 final class HeaderUtils {
     public static final int OK = Header.SIGNATURE;
+    // TODO Maybe PASS_L4 should be a modifiable variable
+    public static final int PASS_L4 = 85; // Udp
     public static final int FAIL = 0;
 
     private HeaderUtils() {
     }
 
     public static int validateSignature(byte signature) {
-        if (OK == signature) {
+        if (Header.SIGNATURE == signature) {
             return OK;
-        } 
+        } else if (PASS_L4 == signature) {
+            return PASS_L4;
+        }
         return FAIL;
-    }
-
-    public static void writeHeader(TProtocol protocol, Header header) throws TException {
-        protocol.writeByte(header.getSignature());
-        protocol.writeByte(header.getVersion());
-        // fixed size regardless protocol
-        short type = header.getType();
-        protocol.writeByte(BytesUtils.writeShort1(type));
-        protocol.writeByte(BytesUtils.writeShort2(type));
     }
 }

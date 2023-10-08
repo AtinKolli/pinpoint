@@ -16,11 +16,12 @@
 
 package com.navercorp.pinpoint.collector.dao;
 
-import com.navercorp.pinpoint.common.server.bo.ApiMetaDataBo;
+import com.navercorp.pinpoint.thrift.dto.TApiMetaData;
 
 /**
  * @author emeroad
  */
 public interface ApiMetaDataDao {
-    void insert(ApiMetaDataBo apiMetaData);
+
+    void insert(TApiMetaData apiMetaData);
 }

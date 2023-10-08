@@ -16,35 +16,31 @@
 
 package com.navercorp.pinpoint.profiler.util;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import javassist.*;
+import javassist.bytecode.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.navercorp.pinpoint.common.util.ArrayUtils;
-import com.navercorp.pinpoint.common.util.CollectionUtils;
-import com.navercorp.pinpoint.common.util.StringUtils;
-
 
 /**
  * @author emeroad
  */
 public final class JavaAssistUtils {
-    private static final String EMPTY_PARAMETER = "()";
+    private final static String EMTPY_ARRAY = "()";
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
     private static final String ARRAY = "[]";
 
-    private static final String CLASS_POST_FIX = ".class";
+    private static final Logger logger = LoggerFactory.getLogger(JavaAssistUtils.class);
 
     private static final Pattern PARAMETER_SIGNATURE_PATTERN = Pattern.compile("\\[*L[^;]+;|\\[*[ZBCSIFDJ]|[ZBCSIFDJ]");
 
     private static final Map<String, String> PRIMITIVE_JAVA_TO_JVM = createPrimitiveJavaToJvmMap();
 
     private static Map<String, String> createPrimitiveJavaToJvmMap() {
-        final Map<String, String> primitiveJavaToJvm = new HashMap<>();
+        final Map<String, String> primitiveJavaToJvm = new HashMap<String, String>();
         primitiveJavaToJvm.put("byte", "B");
         primitiveJavaToJvm.put("char", "C");
         primitiveJavaToJvm.put("double", "D");
@@ -60,10 +56,32 @@ public final class JavaAssistUtils {
     private JavaAssistUtils() {
     }
 
+    /**
+     * example return value: (int, java.lang.String)
+     *
+     * @param params
+     * @return
+     */
+    public static String getParameterDescription(CtClass[] params) {
+        if (params == null) {
+            return EMTPY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder(64);
+        sb.append('(');
+        int end = params.length - 1;
+        for (int i = 0; i < params.length; i++) {
+            sb.append(params[i].getName());
+            if (i < end) {
+                sb.append(", ");
+            }
+        }
+        sb.append(')');
+        return sb.toString();
+    }
 
     public static String javaTypeToJvmSignature(String[] javaTypeArray, String returnType) {
         if (returnType == null) {
-            throw new NullPointerException("returnType");
+            throw new NullPointerException("returnType must not be null");
         }
         final String parameterSignature = javaTypeToJvmSignature(javaTypeArray);
         final StringBuilder sb = new StringBuilder(parameterSignature.length() + 8);
@@ -73,8 +91,8 @@ public final class JavaAssistUtils {
     }
 
     public static String javaTypeToJvmSignature(String[] javaTypeArray) {
-        if (ArrayUtils.isEmpty(javaTypeArray)) {
-            return EMPTY_PARAMETER;
+        if (javaTypeArray == null || javaTypeArray.length == 0) {
+            return "()";
         }
         final StringBuilder buffer = new StringBuilder();
         buffer.append('(');
@@ -87,19 +105,21 @@ public final class JavaAssistUtils {
 
     }
 
-    public static String toJvmSignature(String javaType) {
+
+    //for test
+    static String toJvmSignature(String javaType) {
         if (javaType == null) {
-            throw new NullPointerException("javaType");
+            throw new NullPointerException("javaType must not be null");
         }
         if (javaType.isEmpty()) {
-            throw new IllegalArgumentException("javaType is empty");
+            throw new IllegalArgumentException("invalid javaType. \"\"");
         }
 
         final int javaObjectArraySize = getJavaObjectArraySize(javaType);
+        final int javaArrayLength = javaObjectArraySize * 2;
         String pureJavaType;
         if (javaObjectArraySize != 0) {
             // pure java
-            final int javaArrayLength = javaObjectArraySize * 2;
             pureJavaType = javaType.substring(0, javaType.length() - javaArrayLength);
         } else {
             pureJavaType = javaType;
@@ -120,78 +140,33 @@ public final class JavaAssistUtils {
             buffer.append('[');
         }
         buffer.append('L');
-        StringMatchUtils.appendAndReplace(pureJavaType, 0, '.', '/', buffer);
+        buffer.append(javaNameToJvmName(pureJavaType));
         buffer.append(';');
         return buffer.toString();
     }
 
     /**
      * java.lang.String -> java/lang/String
-     *
      * @param javaName
      * @return
      */
     public static String javaNameToJvmName(String javaName) {
         if (javaName == null) {
-            throw new NullPointerException("javaName");
+            throw new NullPointerException("javaName must not be null");
         }
         return javaName.replace('.', '/');
     }
 
     /**
      * java/lang/String -> java.lang.String
-     *
      * @param jvmName
      * @return
      */
     public static String jvmNameToJavaName(String jvmName) {
         if (jvmName == null) {
-            throw new NullPointerException("jvmName");
+            throw new NullPointerException("jvmName must not be null");
         }
         return jvmName.replace('/', '.');
-    }
-
-
-    /**
-     * java.lang.String -> java/lang/String.class
-     *
-     * @param javaName
-     * @return
-     */
-    public static String javaClassNameToJvmResourceName(String javaName) {
-        if (javaName == null) {
-            throw new NullPointerException("javaName");
-        }
-        final int index = javaName.indexOf('.');
-        if (index == -1) {
-            return javaName + CLASS_POST_FIX;
-        }
-
-        StringBuilder builder = new StringBuilder(javaName.length() + CLASS_POST_FIX.length());
-        builder.append(javaName, 0, index);
-
-        StringMatchUtils.appendAndReplace(javaName, index, '.', '/', builder);
-
-        builder.append(CLASS_POST_FIX);
-        return builder.toString();
-    }
-
-    /**
-     * java/lang/String -> java.lang.String
-     *
-     * @param jvmNameArray
-     * @return
-     */
-    public static List<String> jvmNameToJavaName(List<String> jvmNameArray) {
-        if (CollectionUtils.isEmpty(jvmNameArray)) {
-            return Collections.emptyList();
-        }
-
-        List<String> list = new ArrayList<>(jvmNameArray.size());
-        for (String jvmName : jvmNameArray) {
-            list.add(jvmNameToJavaName(jvmName));
-        }
-        return list;
     }
 
     private static String appendJvmArray(String signature, int javaObjectArraySize) {
@@ -208,17 +183,32 @@ public final class JavaAssistUtils {
 
     static int getJavaObjectArraySize(String javaType) {
         if (javaType == null) {
-            throw new NullPointerException("javaType");
+            throw new NullPointerException("javaType must not be null");
         }
         if (javaType.isEmpty()) {
             return 0;
         }
-        return StringMatchUtils.endsWithCountMatches(javaType, ARRAY);
+        final int endIndex = javaType.length() - 1;
+        final char checkEndArrayExist = javaType.charAt(endIndex);
+        if (checkEndArrayExist != ']') {
+            return 0;
+        }
+        int arraySize = 0;
+        for (int i = endIndex; i > 0; i = i - 2) {
+            final char arrayEnd = javaType.charAt(i);
+            final char arrayStart = javaType.charAt(i - 1);
+            if (arrayStart == '[' && arrayEnd == ']') {
+                arraySize++;
+            } else {
+                return arraySize;
+            }
+        }
+        return arraySize;
     }
 
     public static String[] parseParameterSignature(String signature) {
         if (signature == null) {
-            throw new NullPointerException("signature");
+            throw new NullPointerException("signature must not be null");
         }
         final List<String> parameterSignatureList = splitParameterSignature(signature);
         if (parameterSignatureList.isEmpty()) {
@@ -230,41 +220,6 @@ public final class JavaAssistUtils {
             objectType[i] = byteCodeSignatureToObjectType(parameterSignature, 0);
         }
         return objectType;
-    }
-
-    public static String javaClassNameToObjectName(String javaClassName) {
-        final char scheme = javaClassName.charAt(0);
-        if (scheme == '[') {
-            return toArrayType(javaClassName);
-        }
-        return javaClassName;
-    }
-
-    // to variable name.
-    // '.' '$' '[' ']' => '_'
-    private static final char[] CLASS_REPLACE_CHAR =  ".$[]".toCharArray();
-
-    public static String javaClassNameToVariableName(String javaClassName) {
-        if (javaClassName == null) {
-            throw new NullPointerException("javaClassName");
-        }
-
-        final int index = StringMatchUtils.indexOf(javaClassName, CLASS_REPLACE_CHAR);
-        if (index == -1) {
-            return javaClassName;
-        }
-
-        StringBuilder builder = new StringBuilder(javaClassName.length());
-        builder.append(javaClassName, 0, index);
-        for (int i = index; i < javaClassName.length(); i++) {
-            final char c = javaClassName.charAt(i);
-            if (StringMatchUtils.contains(c, CLASS_REPLACE_CHAR)) {
-                builder.append('_');
-            } else {
-                builder.append(c);
-            }
-        }
-        return builder.toString();
     }
 
     private static String byteCodeSignatureToObjectType(String signature, int startIndex) {
@@ -314,10 +269,19 @@ public final class JavaAssistUtils {
     }
 
     private static int getArraySize(String description) {
-        if (StringUtils.isEmpty(description)) {
+        if (description == null || description.isEmpty()) {
             return 0;
         }
-        return StringMatchUtils.startsWithCountMatches(description, '[');
+        int arraySize = 0;
+        for (int i = 0; i < description.length(); i++) {
+            final char c = description.charAt(i);
+            if (c == '[') {
+                arraySize++;
+            } else {
+                break;
+            }
+        }
+        return arraySize;
     }
 
     private static String toObjectType(String signature, int startIndex) {
@@ -337,7 +301,7 @@ public final class JavaAssistUtils {
             return Collections.emptyList();
         }
         final Matcher matcher = PARAMETER_SIGNATURE_PATTERN.matcher(parameterSignature);
-        final List<String> parameterTypeList = new ArrayList<>();
+        final List<String> parameterTypeList = new ArrayList<String>();
         while (matcher.find()) {
             parameterTypeList.add(matcher.group());
         }
@@ -361,7 +325,7 @@ public final class JavaAssistUtils {
         return signature.substring(start, end);
     }
 
-    public static String[] getParameterType(Class<?>[] paramsClass) {
+    public static String[] getParameterType(Class[] paramsClass) {
         if (paramsClass == null) {
             return null;
         }
@@ -372,34 +336,31 @@ public final class JavaAssistUtils {
         return paramsString;
     }
 
-    public static String[] toPinpointParameterType(Class<?>[] paramClasses) {
-        if (paramClasses == null) {
+    @Deprecated
+    static String[] getParameterType(CtClass[] paramsClass) {
+        if (paramsClass == null) {
             return null;
         }
-
-        String[] paramsString = new String[paramClasses.length];
-        for (int i = 0; i < paramClasses.length; i++) {
-            paramsString[i] = ReflectionUtils.getParameterTypeName(paramClasses[i]);
+        String[] paramsString = new String[paramsClass.length];
+        for (int i = 0; i < paramsClass.length; i++) {
+            paramsString[i] = paramsClass[i].getName();
         }
-
         return paramsString;
     }
 
-    public static String toPinpointParameterType(Class<?> type) {
-        return ReflectionUtils.getParameterTypeName(type);
-    }
-
     @Deprecated
-    public static String getParameterDescription(Class<?>[] params) {
+    public static String getParameterDescription(Class[] params) {
         if (params == null) {
-            return EMPTY_PARAMETER;
+            return EMTPY_ARRAY;
         }
         StringBuilder sb = new StringBuilder(64);
         sb.append('(');
-        sb.append(params[0].getName());
-        for (int i = 1; i < params.length; i++) {
-            sb.append(", ");
+        int end = params.length - 1;
+        for (int i = 0; i < params.length; i++) {
             sb.append(params[i].getName());
+            if (i < end) {
+                sb.append(", ");
+            }
         }
         sb.append(')');
         return sb.toString();
@@ -407,19 +368,154 @@ public final class JavaAssistUtils {
 
 
     public static String getParameterDescription(String[] params) {
-        if (ArrayUtils.isEmpty(params)) {
-            return EMPTY_PARAMETER;
+        if (params == null) {
+            return EMTPY_ARRAY;
         }
         StringBuilder sb = new StringBuilder(64);
         sb.append('(');
-        sb.append(params[0]);
-        for (int i = 1; i < params.length; i++) {
-            sb.append(", ");
+        int end = params.length - 1;
+        for (int i = 0; i < params.length; i++) {
             sb.append(params[i]);
+            if (i < end) {
+                sb.append(", ");
+            }
         }
         sb.append(')');
         return sb.toString();
     }
 
 
+    public static int getLineNumber(CtBehavior method) {
+        if (method == null) {
+            return -1;
+        }
+        return method.getMethodInfo().getLineNumber(0);
+    }
+
+
+    public static boolean isStaticBehavior(CtBehavior behavior) {
+        if (behavior == null) {
+            throw new NullPointerException("behavior must not be null");
+        }
+        int modifiers = behavior.getModifiers();
+        return Modifier.isStatic(modifiers);
+    }
+
+
+    public static String[] getParameterVariableName(CtBehavior method) {
+        if (method == null) {
+            throw new NullPointerException("method must not be null");
+        }
+        LocalVariableAttribute localVariableAttribute = lookupLocalVariableAttribute(method);
+        if (localVariableAttribute == null) {
+            return getParameterDefaultVariableName(method);
+        }
+        return getParameterVariableName(method, localVariableAttribute);
+    }
+
+    /**
+     * get LocalVariableAttribute
+     *
+     * @param method
+     * @return null if the class is not compiled with debug option
+     */
+    public static LocalVariableAttribute lookupLocalVariableAttribute(CtBehavior method) {
+        if (method == null) {
+            throw new NullPointerException("method must not be null");
+        }
+        MethodInfo methodInfo = method.getMethodInfo2();
+        CodeAttribute codeAttribute = methodInfo.getCodeAttribute();
+        
+        if (codeAttribute == null) {
+            return null;
+        }
+        
+        AttributeInfo localVariableTable = codeAttribute.getAttribute(LocalVariableAttribute.tag);
+        LocalVariableAttribute local = (LocalVariableAttribute) localVariableTable;
+        return local;
+    }
+
+    public static String[] getParameterVariableName(CtBehavior method, LocalVariableAttribute localVariableAttribute) {
+        // Inspired by
+        // http://www.jarvana.com/jarvana/view/org/jboss/weld/servlet/weld-servlet/1.0.1-Final/weld-servlet-1.0.1-Final-sources.jar!/org/slf4j/instrumentation/JavassistHelper.java?format=ok
+        // http://grepcode.com/file/repo1.maven.org/maven2/jp.objectfanatics/assertion-weaver/0.0.30/jp/objectfanatics/commons/javassist/JavassistUtils.java
+        if (localVariableAttribute == null) {
+            // null means that the class is not compiled with debug option.
+            return null;
+        }
+
+        dump(localVariableAttribute);
+        String[] parameterTypes = JavaAssistUtils.parseParameterSignature(method.getSignature());
+        if (parameterTypes.length == 0) {
+            return EMPTY_STRING_ARRAY;
+        }
+        String[] parameterVariableNames = new String[parameterTypes.length];
+        boolean thisExist = thisExist(method);
+
+        int paramIndex = 0;
+        for (int i = 0; i < localVariableAttribute.tableLength(); i++) {
+            // if start pc is not 0, it's not a parameter.
+            if (localVariableAttribute.startPc(i) != 0) {
+                continue;
+            }
+            int index = localVariableAttribute.index(i);
+            if (index == 0 && thisExist) {
+                // variable this. skip.
+                continue;
+            }
+            String variablename = localVariableAttribute.variableName(i);
+            parameterVariableNames[paramIndex++] = variablename;
+        }
+        return parameterVariableNames;
+    }
+
+    private static boolean thisExist(CtBehavior method) {
+        int modifiers = method.getModifiers();
+        if (Modifier.isStatic(modifiers)) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    private static void dump(LocalVariableAttribute lva) {
+        if (logger.isDebugEnabled()) {
+            StringBuilder buffer = new StringBuilder(1024);
+            for (int i = 0; i < lva.tableLength(); i++) {
+                buffer.append("\n");
+                buffer.append(i);
+                buffer.append("  start_pc:");
+                buffer.append(lva.startPc(i));
+                buffer.append("  index:");
+                buffer.append(lva.index(i));
+                buffer.append("  name:");
+                buffer.append(lva.variableName(i));
+                buffer.append("  nameIndex:");
+                buffer.append(lva.nameIndex(i));
+            }
+            logger.debug(buffer.toString());
+        }
+    }
+
+
+    public static String[] getParameterDefaultVariableName(CtBehavior method) {
+        if (method == null) {
+            throw new NullPointerException("method must not be null");
+        }
+        String[] parameterTypes = JavaAssistUtils.parseParameterSignature(method.getSignature());
+        String[] variableName = new String[parameterTypes.length];
+        for (int i = 0; i < variableName.length; i++) {
+            variableName[i] = getSimpleName(parameterTypes[i]).toLowerCase();
+        }
+        return variableName;
+    }
+
+    private static String getSimpleName(String parameterName) {
+        final int findIndex = parameterName.lastIndexOf('.');
+        if (findIndex == -1) {
+            return parameterName;
+        } else {
+            return parameterName.substring(findIndex + 1);
+        }
+    }
 }

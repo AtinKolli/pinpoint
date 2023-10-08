@@ -16,22 +16,33 @@
 
 package com.navercorp.pinpoint.rpc.server;
 
-import com.navercorp.pinpoint.rpc.PinpointSocket;
-import com.navercorp.pinpoint.rpc.common.SocketStateCode;
-
+import java.net.SocketAddress;
 import java.util.Map;
+
+import com.navercorp.pinpoint.rpc.Future;
+import com.navercorp.pinpoint.rpc.common.SocketStateCode;
+import com.navercorp.pinpoint.rpc.packet.RequestPacket;
+import com.navercorp.pinpoint.rpc.stream.ClientStreamChannelContext;
+import com.navercorp.pinpoint.rpc.stream.ClientStreamChannelMessageListener;
 
 /**
  * @author Taejin Koo
  */
-public interface PinpointServer extends PinpointSocket {
+public interface PinpointServer {
+    void send(byte[] payload);
 
-    long getStartTimestamp();
+    Future request(byte[] payload);
+    
+    void response(RequestPacket requestPacket, byte[] payload);
+    void response(int requestId, byte[] payload);
+
+    ClientStreamChannelContext createStream(byte[] payload, ClientStreamChannelMessageListener clientStreamChannelMessageListener);
 
     void messageReceived(Object message);
 
     SocketStateCode getCurrentStateCode();
-    HealthCheckState getHealthCheckState();
+
+    SocketAddress getRemoteAddress();
 
     Map<Object, Object> getChannelProperties();
     

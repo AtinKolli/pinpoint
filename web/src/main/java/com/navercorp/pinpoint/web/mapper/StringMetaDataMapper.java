@@ -16,41 +16,30 @@
 
 package com.navercorp.pinpoint.web.mapper;
 
-import com.navercorp.pinpoint.common.hbase.HbaseColumnFamily;
-import com.navercorp.pinpoint.common.hbase.RowMapper;
-import com.navercorp.pinpoint.common.hbase.util.CellUtils;
-import com.navercorp.pinpoint.common.server.bo.StringMetaDataBo;
-import com.navercorp.pinpoint.common.server.bo.serializer.RowKeyDecoder;
-import com.navercorp.pinpoint.common.server.bo.serializer.metadata.MetaDataRowKey;
-import com.navercorp.pinpoint.common.server.bo.serializer.metadata.MetadataDecoder;
+import com.navercorp.pinpoint.common.bo.StringMetaDataBo;
 import com.sematext.hbase.wd.RowKeyDistributorByHashPrefix;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.CellUtil;
+
+import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.hadoop.hbase.RowMapper;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * @author emeroad
- * @author minwoo.jung
  */
 @Component
 public class StringMetaDataMapper implements RowMapper<List<StringMetaDataBo>> {
 
-    private final static byte[] STRING_METADATA_CQ = HbaseColumnFamily.STRING_METADATA_STR.QUALIFIER_STRING;
-
-    private final RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix;
-
-    private final RowKeyDecoder<MetaDataRowKey> decoder = new MetadataDecoder();
-
-    public StringMetaDataMapper(@Qualifier("metadataRowKeyDistributor") RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix) {
-        this.rowKeyDistributorByHashPrefix = Objects.requireNonNull(rowKeyDistributorByHashPrefix, "rowKeyDistributorByHashPrefix");
-    }
+    @Autowired
+    @Qualifier("metadataRowKeyDistributor")
+    private RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix;
 
     @Override
     public List<StringMetaDataBo> mapRow(Result result, int rowNum) throws Exception {
@@ -58,29 +47,18 @@ public class StringMetaDataMapper implements RowMapper<List<StringMetaDataBo>> {
             return Collections.emptyList();
         }
         final byte[] rowKey = getOriginalKey(result.getRow());
-        final MetaDataRowKey key = decoder.decodeRowKey(rowKey);
 
-        List<StringMetaDataBo> stringMetaDataList = new ArrayList<>(result.size());
-
-        for (Cell cell : result.rawCells()) {
-            String stringValue = readString(cell);
-
-            StringMetaDataBo stringMetaDataBo = new StringMetaDataBo(key.getAgentId(), key.getAgentStartTime(), key.getId(), stringValue);
-
-            stringMetaDataList.add(stringMetaDataBo);
+        List<StringMetaDataBo> stringMetaDataList = new ArrayList<StringMetaDataBo>();
+        KeyValue[] keyList = result.raw();
+        for (KeyValue keyValue : keyList) {
+            StringMetaDataBo sqlMetaDataBo = new StringMetaDataBo();
+            sqlMetaDataBo.readRowKey(rowKey);
+            String stringValue = Bytes.toString(keyValue.getBuffer(), keyValue.getQualifierOffset(), keyValue.getQualifierLength());
+            sqlMetaDataBo.setStringValue(stringValue);
+            stringMetaDataList.add(sqlMetaDataBo);
         }
         return stringMetaDataList;
     }
-
-    private String readString(Cell cell) {
-        if (CellUtil.matchingQualifier(cell, STRING_METADATA_CQ)) {
-            return CellUtils.valueToString(cell);
-        } else {
-            // backward compatibility
-            return CellUtils.qualifierToString(cell);
-        }
-    }
-
 
     private byte[] getOriginalKey(byte[] rowKey) {
         return rowKeyDistributorByHashPrefix.getOriginalKey(rowKey);

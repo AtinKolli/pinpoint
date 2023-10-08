@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,19 +16,21 @@
 
 package com.navercorp.pinpoint.profiler.sender;
 
-import com.navercorp.pinpoint.common.profiler.message.EnhancedDataSender;
-import com.navercorp.pinpoint.io.ResponseMessage;
 import com.navercorp.pinpoint.profiler.context.Span;
 import com.navercorp.pinpoint.profiler.context.SpanChunk;
-import com.navercorp.pinpoint.profiler.context.SpanType;
+import com.navercorp.pinpoint.profiler.sender.EnhancedDataSender;
+import com.navercorp.pinpoint.rpc.FutureListener;
+import com.navercorp.pinpoint.rpc.ResponseMessage;
+import com.navercorp.pinpoint.rpc.client.PinpointSocketReconnectEventListener;
+
+import org.apache.thrift.TBase;
 
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 
 /**
  * @author emeroad
  */
-public class CountingDataSender implements EnhancedDataSender<SpanType, ResponseMessage> {
+public class CountingDataSender implements EnhancedDataSender {
 
     private final AtomicInteger requestCounter = new AtomicInteger();
     private final AtomicInteger requestRetryCounter = new AtomicInteger();
@@ -40,25 +42,34 @@ public class CountingDataSender implements EnhancedDataSender<SpanType, Response
 
 
     @Override
-    public boolean request(SpanType data) {
+    public boolean request(TBase<?, ?> data) {
         requestCounter.incrementAndGet();
         return false;
     }
 
     @Override
-    public boolean request(SpanType data, int retry) {
+    public boolean request(TBase<?, ?> data, int retry) {
         requestRetryCounter.incrementAndGet();
         return false;
     }
 
     @Override
-    public boolean request(SpanType data, BiConsumer<ResponseMessage, Throwable> listener) {
+    public boolean request(TBase<?, ?> data, FutureListener<ResponseMessage> listener) {
         return false;
     }
 
+    @Override
+    public boolean addReconnectEventListener(PinpointSocketReconnectEventListener eventListener) {
+        return false;
+    }
 
     @Override
-    public boolean send(SpanType data) {
+    public boolean removeReconnectEventListener(PinpointSocketReconnectEventListener eventListener) {
+        return false;
+    }
+
+    @Override
+    public boolean send(TBase<?, ?> data) {
         senderCounter.incrementAndGet();
         if (data instanceof Span) {
             this.spanCounter.incrementAndGet();
@@ -76,6 +87,11 @@ public class CountingDataSender implements EnhancedDataSender<SpanType, Response
         this.senderCounter.set(0);
         this.spanCounter.set(0);
         this.spanChunkCounter.set(0);
+    }
+
+    @Override
+    public boolean isNetworkAvailable() {
+        return false;
     }
 
     public int getRequestCounter() {

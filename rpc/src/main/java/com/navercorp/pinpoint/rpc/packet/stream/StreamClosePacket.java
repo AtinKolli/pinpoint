@@ -16,9 +16,10 @@
 
 package com.navercorp.pinpoint.rpc.packet.stream;
 
-import com.navercorp.pinpoint.rpc.packet.PacketType;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
+
+import com.navercorp.pinpoint.rpc.packet.PacketType;
 
 /**
  * @author koo.taejin
@@ -27,14 +28,11 @@ public class StreamClosePacket extends BasicStreamPacket {
 
     private final static short PACKET_TYPE = PacketType.APPLICATION_STREAM_CLOSE;
 
-    private final StreamCode code;
+    private final short code;
 
     public StreamClosePacket(int streamChannelId, short code) {
-        this(streamChannelId, StreamCode.getCode(code));
-    }
-
-    public StreamClosePacket(int streamChannelId, StreamCode code) {
         super(streamChannelId);
+
         this.code = code;
     }
 
@@ -48,7 +46,7 @@ public class StreamClosePacket extends BasicStreamPacket {
         ChannelBuffer header = ChannelBuffers.buffer(2 + 4 + 2);
         header.writeShort(getPacketType());
         header.writeInt(getStreamChannelId());
-        header.writeShort(code.value());
+        header.writeShort(code);
 
         return header;
     }
@@ -68,7 +66,7 @@ public class StreamClosePacket extends BasicStreamPacket {
         return packet;
     }
 
-    public StreamCode getCode() {
+    public short getCode() {
         return code;
     }
 

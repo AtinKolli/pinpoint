@@ -16,43 +16,53 @@
 
 package com.navercorp.pinpoint.web.filter;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+
+import com.navercorp.pinpoint.common.bo.SpanBo;
 
 /**
- *
+ * 
  * @author netspider
- *
+ * 
  */
-public class FilterChain<T> implements Filter<T> {
+public class FilterChain implements Filter {
 
-    private final Filter<T>[] filters;
+    private final List<Filter> filterList;
 
-
-    public FilterChain(List<Filter<T>> linkFilterList) {
-        Objects.requireNonNull(linkFilterList, "linkFilterList");
-        this.filters = linkFilterList.toArray(new Filter[0]);
+    public FilterChain() {
+        filterList = new ArrayList<Filter>();
     }
 
+    public void addFilter(Filter filter) {
+        filterList.add(filter);
+    }
 
     @Override
-    public boolean include(T transaction) {
+    public boolean include(List<SpanBo> transaction) {
         // FIXME how to improve performance without "for loop"
-        for (Filter<T> filter : filters) {
-            if (!filter.include(transaction)) {
-                return REJECT;
+        for (Filter f : filterList) {
+            if (!f.include(transaction)) {
+                return false;
             }
         }
-        return ACCEPT;
+        return true;
     }
 
+    public Filter get() {
+        if (filterList.size() == 1) {
+            return filterList.get(0);
+        } else {
+            return this;
+        }
+    }
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("FilterChain{");
-        sb.append("filters=").append(Arrays.toString(filters));
-        sb.append('}');
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < filterList.size(); i++, sb.append("<br/>")) {
+            sb.append(filterList.get(i).toString());
+        }
         return sb.toString();
     }
 }

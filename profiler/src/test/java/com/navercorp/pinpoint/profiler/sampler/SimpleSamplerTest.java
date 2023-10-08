@@ -16,27 +16,30 @@
 
 package com.navercorp.pinpoint.profiler.sampler;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+
+import com.navercorp.pinpoint.profiler.sampler.SamplingRateSampler;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author emeroad
  */
 public class SimpleSamplerTest {
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
 
     @Test
     public void test() {
-        CountingSampler simpleSampler = new CountingSampler(1);
+        SamplingRateSampler simpleSampler = new SamplingRateSampler(1);
         assertChoice(simpleSampler);
         assertChoice(simpleSampler);
         assertChoice(simpleSampler);
         assertChoice(simpleSampler);
 
-        CountingSampler simpleSampler2 = new CountingSampler(2);
+         SamplingRateSampler simpleSampler2 = new SamplingRateSampler(2);
         assertChoice(simpleSampler2);
         assertDrop(simpleSampler2);
         assertChoice(simpleSampler2);
@@ -52,13 +55,13 @@ public class SimpleSamplerTest {
         logger.debug("{}", j);
     }
 
-    private void assertDrop(CountingSampler simpleSampler) {
+    private void assertDrop(SamplingRateSampler simpleSampler) {
         boolean sample = simpleSampler.isSampling();
-        Assertions.assertFalse(sample);
+        Assert.assertFalse(sample);
     }
 
-    private void assertChoice(CountingSampler simpleSampler) {
+    private void assertChoice(SamplingRateSampler simpleSampler) {
         boolean sample = simpleSampler.isSampling();
-        Assertions.assertTrue(sample);
+        Assert.assertTrue(sample);
     }
 }

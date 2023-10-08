@@ -17,13 +17,11 @@
 package com.navercorp.pinpoint.web.vo.scatter;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.navercorp.pinpoint.web.vo.scatter.Dot;
+import com.navercorp.pinpoint.web.vo.scatter.ScatterIndex;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * To be used with @ResponseBody.
@@ -39,9 +37,12 @@ public class ScatterScanResult {
     private List<Dot> scatter = Collections.emptyList();
 
     public ScatterScanResult(long resultFrom, long resultTo, List<Dot> scatterList) {
+        if (scatterList == null) {
+            throw new NullPointerException("resultFrom must not be null");
+        }
         this.resultFrom = resultFrom;
         this.resultTo = resultTo;
-        this.scatter = Objects.requireNonNull(scatterList, "scatterList");
+        this.scatter = scatterList;
     }
 
     public ScatterScanResult() {
@@ -75,13 +76,7 @@ public class ScatterScanResult {
     }
 
     @JsonProperty("scatter")
-    public Map<String, List<Dot>> getScatter() {
-        final Map<String, List<Dot>> scatterAgentData = new HashMap<>();
-        for (Dot dot : scatter) {
-            List<Dot> list = scatterAgentData.computeIfAbsent(dot.getAgentId(), k -> new ArrayList<>());
-            list.add(dot);
-        }
-
-        return scatterAgentData;
+    public List<Dot> getScatter() {
+        return scatter;
     }
 }

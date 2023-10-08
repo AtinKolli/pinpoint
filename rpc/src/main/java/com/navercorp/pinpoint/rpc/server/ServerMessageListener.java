@@ -16,13 +16,18 @@
 
 package com.navercorp.pinpoint.rpc.server;
 
-import com.navercorp.pinpoint.rpc.MessageListener;
+import com.navercorp.pinpoint.rpc.packet.RequestPacket;
+import com.navercorp.pinpoint.rpc.packet.SendPacket;
 import com.navercorp.pinpoint.rpc.server.handler.HandshakerHandler;
-import com.navercorp.pinpoint.rpc.server.handler.PingHandler;
 
 /**
  * @author emeroad
  */
-public interface ServerMessageListener extends MessageListener, HandshakerHandler, PingHandler {
+public interface ServerMessageListener extends HandshakerHandler {
+
+    void handleSend(SendPacket sendPacket, PinpointServer pinpointServer);
+
+    // TODO make another tcp channel in case of exposed channel.
+    void handleRequest(RequestPacket requestPacket, PinpointServer pinpointServer);
 
 }

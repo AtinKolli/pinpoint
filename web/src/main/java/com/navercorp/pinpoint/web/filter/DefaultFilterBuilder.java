@@ -18,144 +18,150 @@ package com.navercorp.pinpoint.web.filter;
 
 import java.io.IOException;
 import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.navercorp.pinpoint.common.server.bo.SpanBo;
-
-import com.navercorp.pinpoint.common.util.StringUtils;
-import com.navercorp.pinpoint.loader.service.AnnotationKeyRegistryService;
-import com.navercorp.pinpoint.loader.service.ServiceTypeRegistryService;
+import com.navercorp.pinpoint.common.ServiceType;
+import com.navercorp.pinpoint.common.service.ServiceTypeRegistryService;
+import org.apache.commons.lang.StringUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.util.Assert;
 
 /**
- *
+ * 
  * @author netspider
  * @author emeroad
  */
 @Component
-public class DefaultFilterBuilder implements FilterBuilder<List<SpanBo>> {
+public class DefaultFilterBuilder implements FilterBuilder {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final ObjectReader filterHintReader;
-    private final ObjectReader filterDescriptorReader;
+    @Autowired
+    private ObjectMapper jsonObjectMapper;
 
-    private final ServiceTypeRegistryService serviceTypeRegistryService;
-
-    private final AnnotationKeyRegistryService annotationKeyRegistryService;
-
-    public DefaultFilterBuilder(ObjectMapper mapper, ServiceTypeRegistryService serviceTypeRegistryService, AnnotationKeyRegistryService annotationKeyRegistryService) {
-        Objects.requireNonNull(mapper, "mapper");
-        this.filterHintReader = mapper.readerFor(FilterHint.class);
-        this.filterDescriptorReader = mapper.readerFor(new TypeReference<List<FilterDescriptor>>() {});
-
-        this.serviceTypeRegistryService = Objects.requireNonNull(serviceTypeRegistryService, "serviceTypeRegistryService");
-        this.annotationKeyRegistryService = Objects.requireNonNull(annotationKeyRegistryService, "annotationKeyRegistryService");
-    }
-
+    @Autowired
+    private ServiceTypeRegistryService registry;
 
     @Override
-    public Filter<List<SpanBo>> build(String filterText) {
+    public Filter build(String filterText) {
         if (StringUtils.isEmpty(filterText)) {
-            return Filter.acceptAllFilter();
+            return Filter.NONE;
         }
 
-        filterText = decode(filterText);
-        logger.debug("build filter from string. {}", filterText);
-
+        try {
+            filterText = URLDecoder.decode(filterText, "UTF-8");
+            logger.debug("build filter from string. {}", filterText);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(filterText);
+        }
         return makeFilterFromJson(filterText);
     }
 
-
     @Override
-    public Filter<List<SpanBo>> build(String filterText, String filterHint) {
+    public Filter build(String filterText, String filterHint) {
         if (StringUtils.isEmpty(filterText)) {
-            return Filter.acceptAllFilter();
+            return Filter.NONE;
         }
 
-        filterText = decode(filterText);
-        logger.debug("build filter from string. {}", filterText);
+        try {
+            filterText = URLDecoder.decode(filterText, "UTF-8");
+            logger.debug("build filter from string. {}", filterText);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("invalid filter text. " + filterText);
+        }
 
-
-        if (StringUtils.hasLength(filterHint)) {
-            filterHint = decode(filterHint);
+        if (!StringUtils.isEmpty(filterHint)) {
+            try {
+                filterHint = URLDecoder.decode(filterHint, "UTF-8");
+                logger.debug("build filter hint from string. {}", filterHint);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("invalid filter hint. " + filterHint);
+            }
         } else {
             filterHint = FilterHint.EMPTY_JSON;
         }
-        logger.debug("build filter hint from string. {}", filterHint);
 
         return makeFilterFromJson(filterText, filterHint);
     }
 
-    private String decode(String value) {
-        if (value == null) {
-            return null;
-        }
-
-        return URLDecoder.decode(value, StandardCharsets.UTF_8);
-    }
-
-    private Filter<List<SpanBo>> makeFilterFromJson(String jsonFilterText) {
+    private Filter makeFilterFromJson(String jsonFilterText) {
         return makeFilterFromJson(jsonFilterText, FilterHint.EMPTY_JSON);
     }
 
-    private Filter<List<SpanBo>> makeFilterFromJson(String jsonFilterText, String jsonFilterHint) {
-        Assert.hasLength(jsonFilterText, "jsonFilterText");
-
-        final List<FilterDescriptor> filterDescriptorList = readFilterDescriptor(jsonFilterText);
-        final FilterHint hint = readFilterHint(jsonFilterHint);
-        logger.debug("filterHint:{}", hint);
-
-        List<Filter<List<SpanBo>>> linkFilter = createLinkFilter(jsonFilterText, filterDescriptorList, hint);
-        final Filter<List<SpanBo>> filterChain = new FilterChain<>(linkFilter);
-
-        return filterChain;
-    }
-
-    private List<Filter<List<SpanBo>>> createLinkFilter(String jsonFilterText, List<FilterDescriptor> filterDescriptorList, FilterHint hint) {
-        final List<Filter<List<SpanBo>>> result = new ArrayList<>();
-        for (FilterDescriptor descriptor : filterDescriptorList) {
-            if (!descriptor.isValid()) {
-                throw new IllegalArgumentException("invalid json " + jsonFilterText);
-            }
-
-            logger.debug("FilterDescriptor={}", descriptor);
-            Filter<List<SpanBo>> filter;
-            if (descriptor.getSelfNode().isValid()) {
-                filter = new ApplicationFilter(descriptor, serviceTypeRegistryService);
-            } else {
-                filter = new LinkFilter(descriptor, hint, serviceTypeRegistryService, annotationKeyRegistryService);
-
-            }
-            result.add(filter);
+    private Filter makeFilterFromJson(String jsonFilterText, String jsonFilterHint) {
+        if (StringUtils.isEmpty(jsonFilterText)) {
+            throw new IllegalArgumentException("json string is empty");
         }
-        return result;
-    }
-
-    private FilterHint readFilterHint(String jsonFilterHint) {
+        FilterChain chain = new FilterChain();
         try {
-            return filterHintReader.readValue(jsonFilterHint);
+            List<FilterDescriptor> list = jsonObjectMapper.readValue(jsonFilterText, new TypeReference<List<FilterDescriptor>>() {
+            });
+
+            FilterHint hint = jsonObjectMapper.readValue(jsonFilterHint, new TypeReference<FilterHint>() {
+            });
+
+            for (FilterDescriptor descriptor : list) {
+                if (!descriptor.isValid()) {
+                    throw new IllegalArgumentException("invalid json " + jsonFilterText);
+                }
+
+                logger.debug("FilterDescriptor={}", descriptor);
+
+                FromToResponseFilter fromToResponseFilter = createFromToResponseFilter(descriptor, hint);
+                chain.addFilter(fromToResponseFilter);
+
+                if (descriptor.isSetUrl()) {
+                    FromToFilter fromToFilter = createFromToFilter(descriptor);
+                    Filter urlPatternFilter = new URLPatternFilter(fromToFilter, descriptor.getUrlPattern());
+                    chain.addFilter(urlPatternFilter);
+                }
+            }
         } catch (IOException e) {
-            throw new RuntimeException("FilterHint read fail. error:" + e.getMessage(), e);
+            throw new RuntimeException(e.getMessage(), e);
         }
+        return chain.get();
     }
 
-    private List<FilterDescriptor> readFilterDescriptor(String jsonFilterText)  {
-        try {
-            return filterDescriptorReader.readValue(jsonFilterText);
-        } catch (IOException e) {
-            throw new RuntimeException("FilterDescriptor read fail. error:" + e.getMessage(), e);
+    private FromToResponseFilter createFromToResponseFilter(FilterDescriptor descriptor, FilterHint hint) {
+        if (descriptor == null) {
+            throw new NullPointerException("descriptor must not be null");
         }
+        List<ServiceType> fromServiceType = registry.findDesc(descriptor.getFromServiceType());
+        if (fromServiceType == null) {
+            throw new IllegalArgumentException("fromServiceCode not found. fromServiceType:" + descriptor.getFromServiceType());
+        }
+        String fromApplicationName = descriptor.getFromApplicationName();
+        String fromAgentName = descriptor.getFromAgentName();
+
+        List<ServiceType> toServiceType = registry.findDesc(descriptor.getToServiceType());
+        if (toServiceType == null) {
+            throw new IllegalArgumentException("toServiceType not found. fromServiceType:" + descriptor.getToServiceType());
+        }
+        String toApplicationName = descriptor.getToApplicationName();
+        String toAgentName = descriptor.getToAgentName();
+        Long fromResponseTime = descriptor.getResponseFrom();
+        Long toResponseTime = descriptor.getResponseTo();
+        Boolean includeFailed = descriptor.getIncludeException();
+        return new FromToResponseFilter(fromServiceType, fromApplicationName, fromAgentName, toServiceType, toApplicationName, toAgentName,fromResponseTime, toResponseTime, includeFailed, hint);
+    }
+
+    private FromToFilter createFromToFilter(FilterDescriptor descriptor) {
+
+        final List<ServiceType> fromServiceTypeList = registry.findDesc(descriptor.getFromServiceType());
+        if (fromServiceTypeList == null) {
+            throw new IllegalArgumentException("fromServiceCode not found. fromServiceType:" + descriptor.getFromServiceType());
+        }
+        final List<ServiceType> toServiceTypeList = registry.findDesc(descriptor.getToServiceType());
+        if (toServiceTypeList == null) {
+            throw new IllegalArgumentException("toServiceTypeList not found. toServiceType:" + descriptor.getToServiceType());
+        }
+
+        return new FromToFilter(fromServiceTypeList, descriptor.getFromApplicationName(), toServiceTypeList, descriptor.getToApplicationName());
     }
 }

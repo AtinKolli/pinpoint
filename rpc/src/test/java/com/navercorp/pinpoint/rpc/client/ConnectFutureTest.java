@@ -16,95 +16,94 @@
 
 package com.navercorp.pinpoint.rpc.client;
 
-import com.navercorp.pinpoint.rpc.client.ConnectFuture.Result;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-
 import java.util.concurrent.TimeUnit;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.navercorp.pinpoint.rpc.client.ConnectFuture.Result;
 
 /**
  * @author Taejin Koo
  */
 public class ConnectFutureTest {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
-
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+    
     @Test
     public void setResultTest() {
         ConnectFuture future = new ConnectFuture();
         future.setResult(Result.FAIL);
         future.setResult(Result.SUCCESS);
-        Assertions.assertEquals(Result.FAIL, future.getResult());
+        Assert.assertEquals(Result.FAIL, future.getResult());
 
         future = new ConnectFuture();
         future.setResult(Result.SUCCESS);
         future.setResult(Result.FAIL);
-        Assertions.assertEquals(Result.SUCCESS, future.getResult());
+        Assert.assertEquals(Result.SUCCESS, future.getResult());
     }
 
     @Test
     public void awaitTest1() throws InterruptedException {
         ConnectFuture future = new ConnectFuture();
-
-        Thread thread = new Thread(new SetResultRunnable(future));
+        long waitTime = 100;
+        
+        Thread thread = new Thread(new SetResultRunnable(future, waitTime));
         thread.start();
-
+        
         future.await();
-
-        Assertions.assertEquals(Result.SUCCESS, future.getResult());
+        
+        Assert.assertEquals(Result.SUCCESS, future.getResult());
     }
-
+    
     @Test
     public void awaitTest2() throws InterruptedException {
         ConnectFuture future = new ConnectFuture();
-
-        Thread thread = new Thread(new SetResultRunnable(future));
+        long waitTime = 100;
+        
+        Thread thread = new Thread(new SetResultRunnable(future, waitTime));
         thread.start();
-
+        
         future.awaitUninterruptibly();
-
-        Assertions.assertEquals(Result.SUCCESS, future.getResult());
+        
+        Assert.assertEquals(Result.SUCCESS, future.getResult());
     }
-
+    
     @Test
     public void awaitTest3() throws InterruptedException {
         ConnectFuture future = new ConnectFuture();
-
-        Thread thread = new Thread(new SetResultRunnable(future));
-        thread.start();
-
-        future.await(TimeUnit.SECONDS.toMillis(1), TimeUnit.MILLISECONDS);
-
-        Assertions.assertEquals(Result.SUCCESS, future.getResult());
-    }
-
-    @Test
-    public void notCompletedTest() throws InterruptedException {
-        ConnectFuture future = new ConnectFuture();
         long waitTime = 100;
-
+        
         Thread thread = new Thread(new SetResultRunnable(future, waitTime));
         thread.start();
-
-        boolean isReady = future.await(waitTime / 2, TimeUnit.MILLISECONDS);
-        Assertions.assertFalse(isReady);
-        Assertions.assertNull(future.getResult());
+        
+        future.await(waitTime * 2, TimeUnit.MILLISECONDS);
+        
+        Assert.assertEquals(Result.SUCCESS, future.getResult());
+    }
+    
+    @Test
+    public void awaitTest4() throws InterruptedException {
+        ConnectFuture future = new ConnectFuture();
+        long waitTime = 100;
+        
+        Thread thread = new Thread(new SetResultRunnable(future, waitTime));
+        thread.start();
+        
+        boolean isReady = future.await(waitTime/2, TimeUnit.MILLISECONDS);
+        Assert.assertFalse(isReady);
+        Assert.assertEquals(null, future.getResult());
 
         isReady = future.await(waitTime, TimeUnit.MILLISECONDS);
-        Assertions.assertTrue(isReady);
-        Assertions.assertEquals(Result.SUCCESS, future.getResult());
+        Assert.assertTrue(isReady);
+        Assert.assertEquals(Result.SUCCESS, future.getResult());
     }
 
     class SetResultRunnable implements Runnable {
-
         private final ConnectFuture future;
         private final long waitTime;
-
-        public SetResultRunnable(ConnectFuture future) {
-            this(future, -1L);
-        }
 
         public SetResultRunnable(ConnectFuture future, long waitTime) {
             this.future = future;
@@ -113,15 +112,12 @@ public class ConnectFutureTest {
 
         @Override
         public void run() {
-            if (waitTime > 0) {
-                try {
-                    Thread.sleep(waitTime);
-                } catch (InterruptedException e) {
-                    logger.warn(e.getMessage(), e);
-                }
+            try {
+                Thread.sleep(waitTime);
+                future.setResult(Result.SUCCESS);
+            } catch (InterruptedException e) {
+                logger.warn(e.getMessage(), e);
             }
-
-            future.setResult(Result.SUCCESS);
         }
 
     }

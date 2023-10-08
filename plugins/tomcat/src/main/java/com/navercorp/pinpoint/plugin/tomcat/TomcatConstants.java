@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright 2014 NAVER Corp.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,34 +14,22 @@
  */
 package com.navercorp.pinpoint.plugin.tomcat;
 
-import static com.navercorp.pinpoint.common.trace.ServiceTypeProperty.*;
+import static com.navercorp.pinpoint.common.HistogramSchema.*;
+import static com.navercorp.pinpoint.common.ServiceTypeProperty.*;
 
-import com.navercorp.pinpoint.common.trace.ServiceType;
-import com.navercorp.pinpoint.common.trace.ServiceTypeFactory;
+import com.navercorp.pinpoint.common.ServiceType;
 
 /**
  * @author Jongho Moon
  * @author jaehong.kim
  *
  */
-public final class TomcatConstants {
-    private TomcatConstants() {
-    }
+public interface TomcatConstants {
+    public static final String TYPE_NAME = "TOMCAT";
+    public static final ServiceType TOMCAT = ServiceType.of(1010, "TOMCAT", NORMAL_SCHEMA, RECORD_STATISTICS);
+    public static final ServiceType TOMCAT_METHOD = ServiceType.of(1011, "TOMCAT_METHOD", NORMAL_SCHEMA);
+    public static final String METADATA_TRACE = "trace";
+    public static final String METADATA_ASYNC = "async";
+    public static final String ATTRIBUTE_PINPOINT_TRACE = "PINPOINT_TRACE";
 
-    public static final ServiceType TOMCAT = ServiceTypeFactory.of(1010, "TOMCAT", RECORD_STATISTICS);
-    public static final ServiceType TOMCAT_METHOD = ServiceTypeFactory.of(1011, "TOMCAT_METHOD");
-
-    public static final String TOMCAT_SERVLET_ASYNC_SCOPE = "TomcatServletAsyncScope";
-    public static final String TOMCAT_SERVLET_REQUEST_TRACE = "com.navercorp.pinpoint.trace";
-
-    /**
-     * The name of the request attribute that should be set by the container
-     * when custom error-handling servlet or JSP page is invoked. The value of
-     * the attribute is of type {@code java.lang.Throwable}. See the chapter
-     * "Error Handling" in the Servlet Specification for details.
-     *
-     * @since Servlet 3.0
-     */
-    public static final String JAVAX_ERROR_EXCEPTION = "javax.servlet.error.exception";
-    public static final String JAKARTA_ERROR_EXCEPTION = "jakarta.servlet.error.exception";
 }

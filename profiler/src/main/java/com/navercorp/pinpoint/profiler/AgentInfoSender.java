@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,240 +16,180 @@
 
 package com.navercorp.pinpoint.profiler;
 
-import com.navercorp.pinpoint.common.profiler.message.EnhancedDataSender;
-import com.navercorp.pinpoint.common.profiler.message.MessageConverter;
-import com.navercorp.pinpoint.common.profiler.message.ResultResponse;
-import com.navercorp.pinpoint.io.ResponseMessage;
-import com.navercorp.pinpoint.profiler.metadata.AgentInfo;
-import com.navercorp.pinpoint.profiler.metadata.MetaDataType;
-import com.navercorp.pinpoint.profiler.util.AgentInfoFactory;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.util.Objects;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.ExecutionException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.navercorp.pinpoint.bootstrap.context.ServerMetaData;
+import com.navercorp.pinpoint.bootstrap.context.ServerMetaDataHolder.ServerMetaDataListener;
+import com.navercorp.pinpoint.bootstrap.context.ServiceInfo;
+import com.navercorp.pinpoint.common.Version;
+import com.navercorp.pinpoint.common.util.PinpointThreadFactory;
+import com.navercorp.pinpoint.profiler.sender.EnhancedDataSender;
+import com.navercorp.pinpoint.thrift.dto.TAgentInfo;
+import com.navercorp.pinpoint.thrift.dto.TServerMetaData;
+import com.navercorp.pinpoint.thrift.dto.TServiceInfo;
+
 
 /**
  * @author emeroad
  * @author koo.taejin
- * @author HyunGil Jeong
+ * @author hyungil.jeong
  */
-public class AgentInfoSender {
-    // refresh daily
-    private static final long DEFAULT_AGENT_INFO_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000L;
-    // retry every 3 seconds
-    private static final long DEFAULT_AGENT_INFO_SEND_INTERVAL_MS = 3 * 1000L;
-    // retry 3 times per attempt
-    private static final int DEFAULT_MAX_TRY_COUNT_PER_ATTEMPT = 3;
+public class AgentInfoSender implements ServerMetaDataListener {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AgentInfoSender.class);
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private static final ThreadFactory THREAD_FACTORY = new PinpointThreadFactory("Pinpoint-agentInfo-sender", true);
+    
+    private final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor(THREAD_FACTORY);
+    private final long agentInfoSendIntervalMs; 
+    private final EnhancedDataSender dataSender;
+    private final AgentInformation agentInformation;
 
-    private final EnhancedDataSender<MetaDataType, ResponseMessage> dataSender;
-    private final AgentInfoFactory agentInfoFactory;
-    private final long refreshIntervalMs;
-    private final long sendIntervalMs;
-    private final int maxTryPerAttempt;
-    private final Scheduler scheduler;
-    private final MessageConverter<Object, ResultResponse> messageConverter;
-
-    private AgentInfoSender(Builder builder) {
-        this.dataSender = builder.dataSender;
-        this.agentInfoFactory = builder.agentInfoFactory;
-        this.refreshIntervalMs = builder.refreshIntervalMs;
-        this.sendIntervalMs = builder.sendIntervalMs;
-        this.maxTryPerAttempt = builder.maxTryPerAttempt;
-        this.scheduler = new Scheduler();
-        this.messageConverter = builder.messageConverter;
+    public AgentInfoSender(EnhancedDataSender dataSender, long agentInfoSendIntervalMs, AgentInformation agentInformation) {
+        if (dataSender == null) {
+            throw new NullPointerException("dataSender must not be null");
+        }
+        if (agentInformation == null) {
+            throw new NullPointerException("agentInformation must not be null");
+        }
+        this.agentInfoSendIntervalMs = agentInfoSendIntervalMs;
+        this.dataSender = dataSender;
+        this.agentInformation = agentInformation;
     }
 
     public void start() {
-        scheduler.start();
+        final TAgentInfo agentInfo = createTAgentInfo();
+        if (LOGGER.isInfoEnabled()) {
+            LOGGER.info("AgentInfoSender started. Sending startup information to Pinpoint server via {}. agentInfo={}", dataSender.getClass().getSimpleName(), agentInfo);
+        }
+        send(agentInfo);
     }
-
-    public void stop() {
-        scheduler.stop();
-        logger.info("AgentInfoSender stopped");
+    
+    @Override
+    public void publishServerMetaData(ServerMetaData serverMetaData) {
+        final TAgentInfo agentInfo = createTAgentInfo(serverMetaData);
+        if (LOGGER.isInfoEnabled()) {
+            LOGGER.info("Sending AgentInfo with ServerMetaData. {}", agentInfo);
+        }
+        send(agentInfo);
     }
-
-    public void refresh() {
-        scheduler.refresh();
+    
+    private void send(final TAgentInfo agentInfo) {
+        final AgentInfoSendRunnable agentInfoSendJob = new AgentInfoSendRunnable(agentInfo);
+        new AgentInfoSendRunnableWrapper(agentInfoSendJob).repeatWithFixedDelay(EXECUTOR_SERVICE, 0, this.agentInfoSendIntervalMs, TimeUnit.MILLISECONDS);
     }
-
-    private interface SuccessListener {
-        void onSuccess();
-
-        SuccessListener NO_OP = new SuccessListener() {
-            @Override
-            public void onSuccess() {
-                // noop
-            }
-        };
+    
+    private TAgentInfo createTAgentInfo() {
+        final TAgentInfo agentInfo = new TAgentInfo();
+        agentInfo.setIp(this.agentInformation.getHostIp());
+        agentInfo.setHostname(this.agentInformation.getMachineName());
+        agentInfo.setPorts("");
+        agentInfo.setAgentId(this.agentInformation.getAgentId());
+        agentInfo.setApplicationName(this.agentInformation.getApplicationName());
+        agentInfo.setPid(this.agentInformation.getPid());
+        agentInfo.setStartTimestamp(this.agentInformation.getStartTime());
+        agentInfo.setServiceType(this.agentInformation.getServerType().getCode());
+        agentInfo.setVersion(Version.VERSION);
+        return agentInfo;
     }
-
-    private class Scheduler {
-
-        private static final long IMMEDIATE = 0L;
-        private final Timer timer = new Timer("Pinpoint-AgentInfoSender-Timer", true);
-        private final Object lock = new Object();
-        // protected by lock's monitor
-        private boolean isRunning = true;
-
-        private Scheduler() {
-            // preload
-            AgentInfoSendTask task = new AgentInfoSendTask(SuccessListener.NO_OP);
-            task.run();
+    
+    private TAgentInfo createTAgentInfo(final ServerMetaData serverMetaData) {
+        final StringBuilder ports = new StringBuilder();
+        for (Entry<Integer, String> entry : serverMetaData.getConnectors().entrySet()) {
+            ports.append(" ");
+            ports.append(entry.getKey());
         }
-
-        public void start() {
-            final SuccessListener successListener = new SuccessListener() {
-                @Override
-                public void onSuccess() {
-                    schedule(this, maxTryPerAttempt, refreshIntervalMs, sendIntervalMs);
-                }
-            };
-            if (logger.isDebugEnabled()) {
-                logger.debug("Start scheduler of agentInfoSender");
-            }
-            schedule(successListener, Integer.MAX_VALUE, IMMEDIATE, sendIntervalMs);
-        }
-
-        public void refresh() {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Refresh scheduler of agentInfoSender");
-            }
-            schedule(SuccessListener.NO_OP, maxTryPerAttempt, IMMEDIATE, sendIntervalMs);
-        }
-
-        private void schedule(SuccessListener successListener, int retryCount, long delay, long period) {
-            synchronized (lock) {
-                if (isRunning) {
-                    AgentInfoSendTask task = new AgentInfoSendTask(successListener, retryCount);
-                    timer.scheduleAtFixedRate(task, delay, period);
-                }
-            }
-        }
-
-        public void stop() {
-            synchronized (lock) {
-                isRunning = false;
-                timer.cancel();
-            }
-        }
+        final TAgentInfo agentInfo = new TAgentInfo();
+        agentInfo.setIp(this.agentInformation.getHostIp());
+        agentInfo.setHostname(this.agentInformation.getMachineName());
+        agentInfo.setPorts(ports.toString());
+        agentInfo.setAgentId(this.agentInformation.getAgentId());
+        agentInfo.setApplicationName(this.agentInformation.getApplicationName());
+        agentInfo.setPid(this.agentInformation.getPid());
+        agentInfo.setStartTimestamp(this.agentInformation.getStartTime());
+        agentInfo.setServiceType(this.agentInformation.getServerType().getCode());
+        agentInfo.setVersion(Version.VERSION);
+        agentInfo.setServerMetaData(createTServiceInfo(serverMetaData));
+        return agentInfo;
     }
-
-    private class AgentInfoSendTask extends TimerTask {
-
-        private final SuccessListener taskHandler;
-        private final int retryCount;
-        private final AtomicInteger counter;
-
-        private AgentInfoSendTask(SuccessListener taskHandler) {
-            this(taskHandler, 0);
+    
+    private TServerMetaData createTServiceInfo(final ServerMetaData serverMetaData) {
+        TServerMetaData tServerMetaData = new TServerMetaData();
+        tServerMetaData.setServerInfo(serverMetaData.getServerInfo());
+        tServerMetaData.setVmArgs(serverMetaData.getVmArgs());
+        List<TServiceInfo> tServiceInfos = new ArrayList<TServiceInfo>();
+        for (ServiceInfo serviceInfo : serverMetaData.getServiceInfos()) {
+            TServiceInfo tServiceInfo = new TServiceInfo();
+            tServiceInfo.setServiceName(serviceInfo.getServiceName());
+            tServiceInfo.setServiceLibs(serviceInfo.getServiceLibs());
+            tServiceInfos.add(tServiceInfo);
         }
-
-        private AgentInfoSendTask(SuccessListener taskHandler, int retryCount) {
-            this.taskHandler = Objects.requireNonNull(taskHandler, "taskHandler");
-            this.retryCount = retryCount;
-            this.counter = new AtomicInteger(0);
+        tServerMetaData.setServiceInfos(tServiceInfos);
+        return tServerMetaData;
+    }
+    
+    private static class AgentInfoSendRunnableWrapper implements Runnable {
+        private final AgentInfoSendRunnable delegate;
+        private ScheduledFuture<?> self;
+        
+        private AgentInfoSendRunnableWrapper(AgentInfoSendRunnable agentInfoSendRunnable) {
+            this.delegate = agentInfoSendRunnable;
         }
 
         @Override
         public void run() {
-            int runCount = counter.incrementAndGet();
-            if (runCount > retryCount) {
-                this.cancel();
-                return;
-            }
-            boolean isSuccessful = sendAgentInfo();
-            if (isSuccessful) {
-                logger.info("AgentInfo sent.");
-                this.cancel();
-                taskHandler.onSuccess();
+            // Cancel self when delegated runnable is completed successfully.
+            if (this.delegate.isSuccessful()) {
+                this.self.cancel(true);
+            } else {
+                this.delegate.run();
             }
         }
-
-        private boolean sendAgentInfo() {
-            try {
-                AgentInfo agentInfo = agentInfoFactory.createAgentInfo();
-
-                logger.info("Sending AgentInfo {}", agentInfo);
-                ResponseFutureListener<ResponseMessage, Throwable> listener = new ResponseFutureListener<>();
-                dataSender.request(agentInfo, listener);
-                ResponseMessage responseMessage = listener.getResponseFuture().get(3000, TimeUnit.MILLISECONDS);
-                if (responseMessage == null) {
-                    logger.warn("result not set");
-                    return false;
-                }
-                final ResultResponse result = messageConverter.toMessage(responseMessage);
-                if (!result.isSuccess()) {
-                    logger.warn("request unsuccessful. Cause : {}", result.getMessage());
-                }
-                return result.isSuccess();
-            } catch (ExecutionException ex) {
-                logError(ex.getCause());
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                logError(ex);
-            } catch (TimeoutException ex) {
-                logError(ex);
-            }
-            return false;
+        
+        private void repeatWithFixedDelay(ScheduledExecutorService scheduledExecutorService, long initialDelay, long delay, TimeUnit unit) {
+            this.self = scheduledExecutorService.scheduleWithFixedDelay(this, initialDelay, delay, unit);
         }
-
-        private void logError(Throwable cause) {
-            logger.warn("failed to send agent info", cause);
+    }
+    
+    private class AgentInfoSendRunnable implements Runnable {
+        private final AtomicBoolean isSuccessful = new AtomicBoolean(false);
+        private final AgentInfoSenderListener agentInfoSenderListener = new AgentInfoSenderListener(this.isSuccessful);
+        private final TAgentInfo agentInfo;
+        
+        private AgentInfoSendRunnable(TAgentInfo agentInfo) {
+            this.agentInfo = agentInfo;
+        }
+        
+        @Override
+        public void run() {
+            if (!isSuccessful.get()) {
+                dataSender.request(agentInfo, this.agentInfoSenderListener);
+            }
+        }
+        
+        public boolean isSuccessful() {
+            return this.isSuccessful.get();
         }
     }
 
-    public static class Builder {
-        private final EnhancedDataSender<MetaDataType, ResponseMessage> dataSender;
-        private final AgentInfoFactory agentInfoFactory;
-        private long refreshIntervalMs = DEFAULT_AGENT_INFO_REFRESH_INTERVAL_MS;
-        private long sendIntervalMs = DEFAULT_AGENT_INFO_SEND_INTERVAL_MS;
-        private int maxTryPerAttempt = DEFAULT_MAX_TRY_COUNT_PER_ATTEMPT;
-        private MessageConverter<Object, ResultResponse> messageConverter;
-
-        public Builder(EnhancedDataSender<MetaDataType, ResponseMessage> dataSender, AgentInfoFactory agentInfoFactory) {
-            this.dataSender = Objects.requireNonNull(dataSender, "dataSender");
-            this.agentInfoFactory = Objects.requireNonNull(agentInfoFactory, "agentInfoFactory");
+    public void stop() {
+        EXECUTOR_SERVICE.shutdown();
+        try {
+            EXECUTOR_SERVICE.awaitTermination(3000, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
-
-        public Builder refreshInterval(long refreshIntervalMs) {
-            this.refreshIntervalMs = refreshIntervalMs;
-            return this;
-        }
-
-        public Builder sendInterval(long sendIntervalMs) {
-            this.sendIntervalMs = sendIntervalMs;
-            return this;
-        }
-
-        public Builder maxTryPerAttempt(int maxTryCountPerAttempt) {
-            this.maxTryPerAttempt = maxTryCountPerAttempt;
-            return this;
-        }
-
-        public Builder setMessageConverter(MessageConverter<Object, ResultResponse> messageConverter) {
-            this.messageConverter = messageConverter;
-            return this;
-        }
-
-        public AgentInfoSender build() {
-            if (this.refreshIntervalMs <= 0) {
-                throw new IllegalStateException("agentInfoRefreshIntervalMs must be greater than 0");
-            }
-            if (this.sendIntervalMs <= 0) {
-                throw new IllegalStateException("agentInfoSendIntervalMs must be greater than 0");
-            }
-            if (this.maxTryPerAttempt <= 0) {
-                throw new IllegalStateException("maxTryPerAttempt must be greater than 0");
-            }
-            return new AgentInfoSender(this);
-        }
+        LOGGER.info("AgentInfoSender stopped");
     }
+    
 }

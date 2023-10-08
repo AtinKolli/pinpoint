@@ -18,7 +18,6 @@ package com.navercorp.pinpoint.rpc.control;
 
 import java.lang.reflect.Array;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -36,10 +35,10 @@ import org.jboss.netty.buffer.ChannelBuffers;
 public class ControlMessageEncoder {
 
 
-    private final Charset charset;
+    private Charset charset;
 
     public ControlMessageEncoder() {
-        this.charset = StandardCharsets.UTF_8;
+        this.charset = Charset.forName("UTF-8");
     }
 
     public byte[] encode(Map<String, Object> value) throws ProtocolException {
@@ -86,7 +85,7 @@ public class ControlMessageEncoder {
             } else if (value.getClass().isArray()) {
                 int arraySize = Array.getLength(value);
 
-                List<Object> arrayToList = new ArrayList<>(arraySize);
+                List<Object> arrayToList = new ArrayList<Object>(arraySize);
                 for (int i = 0; i < arraySize; i++) {
                     arrayToList.add(Array.get(value, i));
                 }

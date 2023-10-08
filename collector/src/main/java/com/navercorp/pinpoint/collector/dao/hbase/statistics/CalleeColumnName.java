@@ -19,8 +19,6 @@ package com.navercorp.pinpoint.collector.dao.hbase.statistics;
 import com.navercorp.pinpoint.common.buffer.AutomaticBuffer;
 import com.navercorp.pinpoint.common.buffer.Buffer;
 
-import java.util.Objects;
-
 /**
  * @author emeroad
  */
@@ -38,10 +36,19 @@ public class CalleeColumnName implements ColumnName {
     private long callCount;
 
     public CalleeColumnName(String callerAgentId, short calleeServiceType, String calleeApplicationName, String callHost, short columnSlotNumber) {
-        this.callerAgentId = Objects.requireNonNull(callerAgentId, "callerAgentId");
+        if (callerAgentId == null) {
+            throw new NullPointerException("callerAgentId must not be null");
+        }
+        if (calleeApplicationName == null) {
+            throw new NullPointerException("calleeApplicationName must not be null");
+        }
+        if (callHost == null) {
+            throw new NullPointerException("callHost must not be null");
+        }
+        this.callerAgentId = callerAgentId;
         this.calleeServiceType = calleeServiceType;
-        this.calleeApplicationName = Objects.requireNonNull(calleeApplicationName, "calleeApplicationName");
-        this.callHost = Objects.requireNonNull(callHost, "callHost");
+        this.calleeApplicationName = calleeApplicationName;
+        this.callHost = callHost;
         this.columnSlotNumber = columnSlotNumber;
     }
 
@@ -55,10 +62,10 @@ public class CalleeColumnName implements ColumnName {
 
     public byte[] getColumnName() {
         final Buffer buffer = new AutomaticBuffer(64);
-        buffer.putShort(calleeServiceType);
+        buffer.put(calleeServiceType);
         buffer.putPrefixedString(calleeApplicationName);
         buffer.putPrefixedString(callHost);
-        buffer.putShort(columnSlotNumber);
+        buffer.put(columnSlotNumber);
         buffer.putPrefixedString(callerAgentId);
         return buffer.getBuffer();
     }

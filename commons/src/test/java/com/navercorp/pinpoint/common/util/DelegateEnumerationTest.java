@@ -16,95 +16,87 @@
 
 package com.navercorp.pinpoint.common.util;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import static org.mockito.Mockito.*;
 
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.NoSuchElementException;
+import org.junit.Assert;
+import org.junit.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import java.util.*;
 
 public class DelegateEnumerationTest {
 
     @Test
-    public void testNormal() {
-        Hashtable<String, String> hashTable = new Hashtable<>();
+    public void testNormal() throws Exception {
+        Hashtable<String, String> hashTable = new Hashtable<String, String>();
         hashTable.put("a", "aa");
         hashTable.put("b", "bb");
         hashTable.put("c", "cc");
 
-        List<String> valueList = new ArrayList<>(hashTable.values());
+        List<String> valueList = new ArrayList<String>(hashTable.values());
 
         Enumeration<String> enumeration = hashTable.elements();
-        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<>(enumeration);
+        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<String>(enumeration);
 
-        Assertions.assertTrue(delegateEnumeration.hasMoreElements());
-        Assertions.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
+        Assert.assertTrue(delegateEnumeration.hasMoreElements());
+        Assert.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
 
-        Assertions.assertTrue(delegateEnumeration.hasMoreElements());
-        Assertions.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
+        Assert.assertTrue(delegateEnumeration.hasMoreElements());
+        Assert.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
 
-        Assertions.assertTrue(delegateEnumeration.hasMoreElements());
-        Assertions.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
+        Assert.assertTrue(delegateEnumeration.hasMoreElements());
+        Assert.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
 
-        Assertions.assertTrue(valueList.isEmpty());
+        Assert.assertTrue(valueList.isEmpty());
 
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
-        Assertions.assertNull(delegateEnumeration._getNextException());
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertNull(delegateEnumeration._getNextException());
         assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
     }
 
     @Test
-    public void bug69_Inefficient_exception_is_created() {
-        Hashtable<String, String> hashTable = new Hashtable<>();
+    public void bug69_Inefficient_exception_is_created() throws Exception {
+        Hashtable<String, String> hashTable = new Hashtable<String, String>();
 
         Enumeration<String> enumeration = hashTable.elements();
-        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<>(enumeration);
+        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<String>(enumeration);
 
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
-        Assertions.assertNull(delegateEnumeration._getNextException());
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertNull(delegateEnumeration._getNextException());
 
         assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
     }
 
     @Test
-    public void bug69_Inefficient_exception_is_created_nextElement() {
+    public void bug69_Inefficient_exception_is_created_nextElement() throws Exception {
 
         Enumeration<String> enumeration = mock(Enumeration.class);
         when(enumeration.hasMoreElements()).thenReturn(true);
         when(enumeration.nextElement()).thenReturn(null);
 
-        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<>(enumeration);
+        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<String>(enumeration);
 
-        Assertions.assertNull(delegateEnumeration.nextElement());
-        verify(enumeration).nextElement();
+        Assert.assertNull(delegateEnumeration.nextElement());
+        verify(enumeration, times(1)).nextElement();
 
-        Assertions.assertNull(delegateEnumeration.nextElement());
+        Assert.assertNull(delegateEnumeration.nextElement());
         verify(enumeration, times(2)).nextElement();
 
-        Assertions.assertNull(delegateEnumeration.nextElement());
+        Assert.assertNull(delegateEnumeration.nextElement());
         verify(enumeration, times(3)).nextElement();
     }
 
 
     @Test
-    public void testSkip() {
-        Hashtable<String, String> hashTable = new Hashtable<>();
+    public void testSkip() throws Exception {
+        Hashtable<String, String> hashTable = new Hashtable<String, String>();
         hashTable.put("a", "aa");
         hashTable.put("b", "bb");
         hashTable.put("c", "cc");
 
-        List<String> valueList = new ArrayList<>(hashTable.values());
+        List<String> valueList = new ArrayList<String>(hashTable.values());
 
         Enumeration<String> enumeration = hashTable.elements();
-        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<>(enumeration, new DelegateEnumeration.Filter<String>() {
+        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<String>(enumeration, new DelegateEnumeration.Filter<String>() {
             @Override
             public boolean filter(String s) {
                 if ("bb".equals(s)) {
@@ -114,86 +106,85 @@ public class DelegateEnumerationTest {
             }
         });
 
-        Assertions.assertTrue(delegateEnumeration.hasMoreElements());
-        Assertions.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
+        Assert.assertTrue(delegateEnumeration.hasMoreElements());
+        Assert.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
 
-        Assertions.assertTrue(delegateEnumeration.hasMoreElements());
-        Assertions.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
+        Assert.assertTrue(delegateEnumeration.hasMoreElements());
+        Assert.assertTrue(valueList.remove(delegateEnumeration.nextElement()));
 
-        assertThat(valueList).hasSize(1);
+        Assert.assertEquals(valueList.size(), 1);
 
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
         assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
-        assertThat(valueList)
-                .hasSize(1)
-                .first().isEqualTo("bb");
+        Assert.assertEquals(valueList.size(), 1);
+
+        Assert.assertEquals(valueList.get(0), "bb");
     }
 
     @Test
-    public void testExceptionTest_Exception() {
-        Hashtable<String, String> hashTable = new Hashtable<>();
+    public void testExceptionTest_Exception() throws Exception {
+        Hashtable<String, String> hashTable = new Hashtable<String, String>();
 
         Enumeration<String> enumeration = hashTable.elements();
-        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<>(enumeration);
+        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<String>(enumeration);
 
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
-
-        assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
 
         assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
+
         assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
+        assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
     }
 
     @Test
-    public void testExceptionTest_Exception2() {
+    public void testExceptionTest_Exception2() throws Exception {
 
         Enumeration enumeration = mock(Enumeration.class);
 
         when(enumeration.hasMoreElements()).thenReturn(false);
         when(enumeration.nextElement()).thenThrow(new NoSuchElementException());
 
-        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<>(enumeration);
+        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<String>(enumeration);
 
-        Assertions.assertEquals(enumeration.hasMoreElements(), delegateEnumeration.hasMoreElements());
-        Assertions.assertEquals(enumeration.hasMoreElements(), delegateEnumeration.hasMoreElements());
-
-        assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
-        Assertions.assertEquals(enumeration.hasMoreElements(), delegateEnumeration.hasMoreElements());
+        Assert.assertEquals(enumeration.hasMoreElements(), delegateEnumeration.hasMoreElements());
+        Assert.assertEquals(enumeration.hasMoreElements(), delegateEnumeration.hasMoreElements());
 
         assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
+        Assert.assertEquals(enumeration.hasMoreElements(), delegateEnumeration.hasMoreElements());
+
         assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
-        Assertions.assertEquals(enumeration.hasMoreElements(), delegateEnumeration.hasMoreElements());
+        assertNextElements_Expected_ExceptionEmulation(enumeration, delegateEnumeration);
+        Assert.assertEquals(enumeration.hasMoreElements(), delegateEnumeration.hasMoreElements());
     }
 
     @Test
-    public void testExceptionTest_Null() {
-        Enumeration<String> enumeration = mock(Enumeration.class);
+    public void testExceptionTest_Null() throws Exception {
+        Enumeration enumeration = mock(Enumeration.class);
 
         when(enumeration.hasMoreElements()).thenReturn(false);
         when(enumeration.nextElement()).thenReturn(null);
 
 
-        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<>(enumeration);
+        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<String>(enumeration);
 
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
 
 
-        Assertions.assertSame(delegateEnumeration.nextElement(), null);
-        Assertions.assertSame(delegateEnumeration.nextElement(), null);
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertSame(delegateEnumeration.nextElement(), null);
+        Assert.assertSame(delegateEnumeration.nextElement(), null);
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
 
     }
 
     @Test
-    public void testExceptionTest_Null2() {
+    public void testExceptionTest_Null2() throws Exception {
         Enumeration<String> enumeration = new Enumeration<String>() {
             private boolean first = true;
-
             @Override
             public boolean hasMoreElements() {
                 return first;
@@ -210,31 +201,31 @@ public class DelegateEnumerationTest {
         };
 
 
-        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<>(enumeration);
+        DelegateEnumeration<String> delegateEnumeration = new DelegateEnumeration<String>(enumeration);
 
-        Assertions.assertTrue(delegateEnumeration.hasMoreElements());
-        Assertions.assertTrue(delegateEnumeration.hasMoreElements());
+        Assert.assertTrue(delegateEnumeration.hasMoreElements());
+        Assert.assertTrue(delegateEnumeration.hasMoreElements());
 
-        Assertions.assertSame(delegateEnumeration.nextElement(), "exist");
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertSame(delegateEnumeration.nextElement(), "exist");
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
 
-        Assertions.assertSame(delegateEnumeration.nextElement(), null);
-        Assertions.assertSame(delegateEnumeration.nextElement(), null);
-        Assertions.assertFalse(delegateEnumeration.hasMoreElements());
+        Assert.assertSame(delegateEnumeration.nextElement(), null);
+        Assert.assertSame(delegateEnumeration.nextElement(), null);
+        Assert.assertFalse(delegateEnumeration.hasMoreElements());
 
     }
 
 
     private void assertNextElements_Expected_ExceptionEmulation(Enumeration<String> elements, DelegateEnumeration<String> delegateEnumeration) {
         Exception original = getException(elements);
-        Assertions.assertNotSame(original, null);
+        Assert.assertNotSame(original, null);
 
         Exception delegate = getException(delegateEnumeration);
-        Assertions.assertNotSame(delegate, null);
+        Assert.assertNotSame(delegate, null);
 
-        Assertions.assertEquals(original.getClass(), delegate.getClass());
-        Assertions.assertEquals(original.getMessage(), delegate.getMessage());
-        Assertions.assertEquals(original.getCause(), delegate.getCause());
+        Assert.assertEquals(original.getClass(), delegate.getClass());
+        Assert.assertEquals(original.getMessage(), delegate.getMessage());
+        Assert.assertEquals(original.getCause(), delegate.getCause());
     }
 
 
@@ -244,7 +235,7 @@ public class DelegateEnumerationTest {
         } catch (Exception e) {
             return e;
         }
-        Assertions.fail("NoSuchElementException");
+        Assert.fail("NoSuchElementException");
         return null;
     }
 

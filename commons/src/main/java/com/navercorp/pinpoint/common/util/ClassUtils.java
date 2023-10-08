@@ -16,13 +16,12 @@
 
 package com.navercorp.pinpoint.common.util;
 
-import java.util.Objects;
-
 /**
  * @author hyungil.jeong
  */
 public final class ClassUtils {
     
+    private static final Object CLASS_NOT_LOADED = null;
     private static final char PACKAGE_SEPARATOR = '.';
 
     private ClassUtils() {
@@ -34,41 +33,28 @@ public final class ClassUtils {
     
     public static boolean isLoaded(String name, ClassLoader classLoader) {
         if (name == null) {
-            throw new IllegalArgumentException("name");
+            throw new IllegalArgumentException("name must not be null");
         }
         ClassLoader classLoaderToUse = classLoader;
         if (classLoaderToUse == null) {
             classLoaderToUse = ClassLoaderUtils.getDefaultClassLoader();
         }
         try {
-            classLoaderToUse.loadClass(name);
-            return true;
-        } catch (ClassNotFoundException ignored) {
-            return false;
+            return (classLoaderToUse.loadClass(name) != CLASS_NOT_LOADED);
+        } catch (ClassNotFoundException ignore) {
+            // Swallow
         }
+        return false;
     }
-
-    public static String getPackageName(String fqcn, char packageSeparator, String defaultValue) {
-        Objects.requireNonNull(fqcn, "fqcn");
-
-        final int lastPackageSeparatorIndex = fqcn.lastIndexOf(packageSeparator);
+    
+    public static String getPackageName(String fqcn) {
+        if (fqcn == null) {
+            throw new IllegalArgumentException("fully-qualified class name must not be null");
+        }
+        final int lastPackageSeparatorIndex = fqcn.lastIndexOf(PACKAGE_SEPARATOR);
         if (lastPackageSeparatorIndex == -1) {
-            return defaultValue;
+            return "";
         }
         return fqcn.substring(0, lastPackageSeparatorIndex);
-    }
-
-    public static String getPackageName(String fqcn) {
-        return getPackageName(fqcn, PACKAGE_SEPARATOR, "");
-    }
-
-    /**
-     * convert "." based name to "/" based internal name.
-     */
-    public static String toInternalName(final String className) {
-        if (className == null) {
-            throw new IllegalArgumentException("class name must not be null");
-        }
-        return className.replace('.', '/');
     }
 }

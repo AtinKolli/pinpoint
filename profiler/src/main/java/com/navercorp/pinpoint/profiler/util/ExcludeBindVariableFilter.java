@@ -16,8 +16,6 @@
 
 package com.navercorp.pinpoint.profiler.util;
 
-import java.util.Objects;
-
 import java.lang.reflect.Method;
 
 /**
@@ -25,18 +23,22 @@ import java.lang.reflect.Method;
  */
 public class ExcludeBindVariableFilter implements BindVariableFilter {
 
-    private final String[] excludes;
+    private String[] excudes;
 
     public ExcludeBindVariableFilter(String[] excludes) {
-        this.excludes = Objects.requireNonNull(excludes, "excludes");
+        if (excludes == null) {
+            throw new NullPointerException("excludes must not be null");
+        }
+        this.excudes = excludes;
     }
 
     @Override
     public boolean filter(Method method) {
-        Objects.requireNonNull(method, "method");
-
-        for (String exclude : excludes) {
-            if (method.getName().equals(exclude)) {
+        if (method == null) {
+            throw new NullPointerException("method must not be null");
+        }
+        for (String exclude : excudes) {
+            if(method.getName().equals(exclude)) {
                 return false;
             }
         }

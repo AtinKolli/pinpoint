@@ -16,9 +16,9 @@
 
 package com.navercorp.pinpoint.collector.cluster.route;
 
-import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
+import org.jboss.netty.channel.Channel;
 
-import java.net.SocketAddress;
+import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
 
 /**
  * @author koo.taejin
@@ -27,11 +27,11 @@ public class DefaultRouteEvent implements RouteEvent {
 
     private final TCommandTransfer deliveryCommand;
 
-    private final SocketAddress remoteAddress;
+    private final Channel sourceChannel;
 
-    public DefaultRouteEvent(TCommandTransfer deliveryCommand, SocketAddress remoteAddress) {
+    public DefaultRouteEvent(TCommandTransfer deliveryCommand, Channel sourceChannel) {
         this.deliveryCommand = deliveryCommand;
-        this.remoteAddress = remoteAddress;
+        this.sourceChannel = sourceChannel;
     }
 
     @Override
@@ -40,8 +40,8 @@ public class DefaultRouteEvent implements RouteEvent {
     }
 
     @Override
-    public SocketAddress getRemoteAddress() {
-        return remoteAddress;
+    public Channel getSourceChannel() {
+        return sourceChannel;
     }
 
     @Override
@@ -49,9 +49,9 @@ public class DefaultRouteEvent implements RouteEvent {
         final StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
         sb.append("{");
-        sb.append("{remoteAddress=").append(remoteAddress).append(", ");
-        sb.append("applicationName=").append(deliveryCommand.getApplicationName()).append(", ");
-        sb.append("agentId=").append(deliveryCommand.getAgentId()).append(", ");
+        sb.append("{sourceChannel=").append(sourceChannel).append(",");
+        sb.append("applicationName=").append(deliveryCommand.getApplicationName()).append(",");
+        sb.append("agentId=").append(deliveryCommand.getAgentId()).append(",");
         sb.append("startTimeStamp=").append(deliveryCommand.getStartTime());
         sb.append('}');
         return sb.toString();

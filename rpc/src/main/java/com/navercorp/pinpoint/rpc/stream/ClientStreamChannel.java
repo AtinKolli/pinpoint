@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,39 @@
 
 package com.navercorp.pinpoint.rpc.stream;
 
-import com.navercorp.pinpoint.rpc.packet.stream.StreamResponsePacket;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+
+import com.navercorp.pinpoint.rpc.packet.stream.StreamCreatePacket;
 
 /**
- * @author Taejin Koo
+ * @author koo.taejin
  */
-public interface ClientStreamChannel extends StreamChannel {
+public class ClientStreamChannel extends StreamChannel {
 
-    void handleStreamResponsePacket(StreamResponsePacket packet) throws StreamException;
+    public ClientStreamChannel(Channel channel, int streamId, StreamChannelManager streamChannelManager) {
+        super(channel, streamId, streamChannelManager);
+    }
+
+    public ChannelFuture sendCreate(byte[] payload) {
+        assertState(StreamChannelStateCode.OPEN_AWAIT);
+
+        StreamCreatePacket packet = new StreamCreatePacket(getStreamId(), payload);
+        return this.getChannel().write(packet);
+    }
+
+    boolean changeStateOpen() {
+        boolean result = getState().changeStateOpen();
+
+        logger.info(makeStateChangeMessage(StreamChannelStateCode.OPEN, result));
+        return result;
+    }
+
+    boolean changeStateOpenAwait() {
+        boolean result = getState().changeStateOpenAwait();
+
+        logger.info(makeStateChangeMessage(StreamChannelStateCode.OPEN_AWAIT, result));
+        return result;
+    }
 
 }

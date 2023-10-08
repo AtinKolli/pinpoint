@@ -16,7 +16,7 @@
 
 package com.navercorp.pinpoint.web.applicationmap.rawdata;
 
-import com.navercorp.pinpoint.common.trace.ServiceType;
+import com.navercorp.pinpoint.common.ServiceType;
 import com.navercorp.pinpoint.web.applicationmap.histogram.Histogram;
 import com.navercorp.pinpoint.web.applicationmap.histogram.TimeHistogram;
 import com.navercorp.pinpoint.web.vo.Application;
@@ -26,7 +26,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  *
@@ -43,16 +42,22 @@ public class AgentHistogram {
     private final Map<Long, TimeHistogram> timeHistogramMap;
 
     public AgentHistogram(Application agentId) {
-        this.agentId = Objects.requireNonNull(agentId, "agentId");
-        this.timeHistogramMap = new HashMap<>();
+        if (agentId == null) {
+            throw new NullPointerException("agentId must not be null");
+        }
+
+        this.agentId = agentId;
+        this.timeHistogramMap = new HashMap<Long, TimeHistogram>();
     }
 
     public AgentHistogram(AgentHistogram copyAgentHistogram) {
-        Objects.requireNonNull(copyAgentHistogram, "copyAgentHistogram");
+        if (copyAgentHistogram == null) {
+            throw new NullPointerException("copyAgentHistogram must not be null");
+        }
 
         this.agentId = copyAgentHistogram.agentId;
 
-        this.timeHistogramMap = new HashMap<>();
+        this.timeHistogramMap = new HashMap<Long, TimeHistogram>();
         addTimeHistogram(copyAgentHistogram.timeHistogramMap.values());
     }
 
@@ -95,8 +100,9 @@ public class AgentHistogram {
     }
 
     public void addTimeHistogram(Collection<TimeHistogram> histogramList) {
-        Objects.requireNonNull(histogramList, "histogramList");
-
+        if (histogramList == null) {
+            throw new NullPointerException("histogramList must not be null");
+        }
         for (TimeHistogram timeHistogram : histogramList) {
             addTimeHistogram(timeHistogram);
         }

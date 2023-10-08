@@ -16,10 +16,10 @@
 
 package com.navercorp.pinpoint.collector.cluster.route;
 
-import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
 import org.apache.thrift.TBase;
+import org.jboss.netty.channel.Channel;
 
-import java.net.SocketAddress;
+import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
 
 /**
  * @author koo.taejin
@@ -28,14 +28,14 @@ public class RequestEvent extends DefaultRouteEvent {
 
     private final int requestId;
 
-    private final TBase<?, ?> requestObject;
+    private final TBase requestObject;
 
-    public RequestEvent(RouteEvent routeEvent, int requestId, TBase<?, ?> requestObject) {
-        this(routeEvent.getDeliveryCommand(), routeEvent.getRemoteAddress(), requestId, requestObject);
+    public RequestEvent(RouteEvent routeEvent, int requestId, TBase requestObject) {
+        this(routeEvent.getDeliveryCommand(), routeEvent.getSourceChannel(), requestId, requestObject);
     }
 
-    public RequestEvent(TCommandTransfer deliveryCommand, SocketAddress remoteAddress, int requestId, TBase<?, ?> requestObject) {
-        super(deliveryCommand, remoteAddress);
+    public RequestEvent(TCommandTransfer deliveryCommand, Channel sourceChannel, int requestId, TBase requestObject) {
+        super(deliveryCommand, sourceChannel);
 
         this.requestId = requestId;
         this.requestObject = requestObject;
@@ -45,7 +45,7 @@ public class RequestEvent extends DefaultRouteEvent {
         return requestId;
     }
 
-    public TBase<?, ?> getRequestObject() {
+    public TBase getRequestObject() {
         return requestObject;
     }
 
@@ -54,11 +54,11 @@ public class RequestEvent extends DefaultRouteEvent {
         final StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
         sb.append("{");
-        sb.append("{remoteAddress=").append(getRemoteAddress()).append(", ");
-        sb.append("applicationName=").append(getDeliveryCommand().getApplicationName()).append(", ");
-        sb.append("agentId=").append(getDeliveryCommand().getAgentId()).append(", ");
-        sb.append("startTimeStamp=").append(getDeliveryCommand().getStartTime()).append(", ");
-        sb.append("requestId=").append(requestId).append(", ");
+        sb.append("{sourceChannel=").append(getSourceChannel()).append(",");
+        sb.append("applicationName=").append(getDeliveryCommand().getApplicationName()).append(",");
+        sb.append("agentId=").append(getDeliveryCommand().getAgentId()).append(",");
+        sb.append("startTimeStamp=").append(getDeliveryCommand().getStartTime());
+        sb.append("requestId=").append(requestId);
         sb.append("requestObject=").append(requestObject);
         sb.append('}');
         return sb.toString();

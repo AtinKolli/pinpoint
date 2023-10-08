@@ -16,13 +16,8 @@
 
 package com.navercorp.pinpoint.rpc.util;
 
-
-import java.util.Collections;
 import java.util.List;
 
-/**
- * @author Taejin Koo
- */
 public final class ListUtils {
 
     private ListUtils() {
@@ -35,29 +30,33 @@ public final class ListUtils {
 
         return list.add(value);
     }
-
+    
     public static <V> boolean addAllIfAllValuesNotNull(List<V> list, V[] values) {
         if (values == null) {
             return false;
         }
-
+        
         for (V value : values) {
             if (value == null) {
                 return false;
             }
         }
-        return Collections.addAll(list, values);
+        
+        for (V value : values) {
+            list.add(value);
+        }
+        
+        return true;
     }
-
+    
     public static <V> void addAllExceptNullValue(List<V> list, V[] values) {
         if (values == null) {
             return;
         }
-
+        
         for (V value : values) {
             addIfValueNotNull(list, value);
         }
     }
-
-
+    
 }

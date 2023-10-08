@@ -27,15 +27,11 @@ public final class MapUtils {
     private MapUtils() {
     }
 
-    public static boolean isEmpty(final Map<?, ?> map) {
-        return com.navercorp.pinpoint.common.util.MapUtils.isEmpty(map);
-    }
-
-    public static String getString(Map<?, ?> map, String key) {
+    public static String getString(Map<Object, Object> map, String key) {
         return getString(map, key, null);
     }
 
-    public static String getString(Map<?, ?> map, String key, String defaultValue) {
+    public static String getString(Map<Object, Object> map, String key, String defaultValue) {
         if (map == null) {
             return defaultValue;
         }
@@ -48,11 +44,11 @@ public final class MapUtils {
         return defaultValue;
     }
 
-    public static Boolean getBoolean(Map<?, ?> map, String key) {
+    public static Boolean getBoolean(Map<Object, Object> map, String key) {
         return getBoolean(map, key, false);
     }
 
-    public static Boolean getBoolean(Map<?, ?> map, String key, Boolean defaultValue) {
+    public static Boolean getBoolean(Map<Object, Object> map, String key, Boolean defaultValue) {
         if (map == null) {
             return defaultValue;
         }
@@ -66,11 +62,11 @@ public final class MapUtils {
     }
 
 
-    public static Integer getInteger(Map<?, ?> map, String key) {
+    public static Integer getInteger(Map<Object, Object> map, String key) {
         return getInteger(map, key, null);
     }
 
-    public static Integer getInteger(Map<?, ?> map, String key, Integer defaultValue) {
+    public static Integer getInteger(Map<Object, Object> map, String key, Integer defaultValue) {
         if (map == null) {
             return defaultValue;
         }
@@ -83,11 +79,11 @@ public final class MapUtils {
         return defaultValue;
     }
     
-    public static Long getLong(Map<?, ?> map, String key) {
+    public static Long getLong(Map<Object, Object> map, String key) {
         return getLong(map, key, null);
     }
 
-    public static Long getLong(Map<?, ?> map, String key, Long defaultValue) {
+    public static Long getLong(Map<Object, Object> map, String key, Long defaultValue) {
         if (map == null) {
             return defaultValue;
         }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2019 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,18 +16,18 @@
 
 package com.navercorp.pinpoint.collector.receiver;
 
-import com.navercorp.pinpoint.io.request.ServerRequest;
-import com.navercorp.pinpoint.io.request.ServerResponse;
+import org.apache.thrift.TBase;
 
 /**
  * @author emeroad
  * @author koo.taejin
  */
-public interface DispatchHandler<REQ, RES> {
+public interface DispatchHandler {
 
     // Separating Send and Request. That dose not be satisfied but try to change that later.
-    void dispatchSendMessage(ServerRequest<REQ> serverRequest);
 
-    void dispatchRequestMessage(ServerRequest<REQ> serverRequest, ServerResponse<RES> serverResponse);
+    void dispatchSendMessage(TBase<?, ?> tBase, byte[] packet, int offset, int length);
+
+    TBase dispatchRequestMessage(TBase<?, ?> tBase, byte[] packet, int offset, int length);
 
 }

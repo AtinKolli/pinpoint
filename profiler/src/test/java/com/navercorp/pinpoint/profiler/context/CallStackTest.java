@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,181 +16,137 @@
 
 package com.navercorp.pinpoint.profiler.context;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.navercorp.pinpoint.profiler.context.CallStack;
+import com.navercorp.pinpoint.profiler.context.DefaultTraceId;
+import com.navercorp.pinpoint.profiler.context.Span;
+import com.navercorp.pinpoint.profiler.context.SpanEvent;
+import com.navercorp.pinpoint.profiler.context.SpanEventStackFrame;
+import com.navercorp.pinpoint.profiler.context.StackFrame;
 
 /**
  * @author emeroad
- * @author jaehong.kim
  */
-public abstract class CallStackTest {
+public class CallStackTest {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    protected CallStack.Factory<SpanEvent> factory = new SpanEventFactory();
-
-    abstract CallStack<SpanEvent> newCallStack();
-
-    abstract CallStack<SpanEvent> newCallStack(int depth);
-
-    abstract CallStack<SpanEvent> newCallStack(int depth, int sequence);
-
-    public SpanEvent getSpanEvent() {
-        return factory.newInstance();
+    public Span createSpan() {
+        DefaultTraceId traceId = new DefaultTraceId("test", 0, 1);
+        Span span = new Span();
+        span.setAgentId("agentId");
+        span.recordTraceId(traceId);
+        return span;
     }
+
+    private SpanEventStackFrame createSpanEventStackFrame(Span span) {
+        SpanEvent spanEvent = new SpanEvent(span);
+        SpanEventStackFrame spanEventStackFrame = new SpanEventStackFrame(spanEvent);
+        return spanEventStackFrame;
+    }
+
 
     @Test
-    public void testPush() {
-        CallStack<SpanEvent> callStack = newCallStack();
-        int initialIndex = callStack.getIndex();
-        assertEquals(initialIndex, 0, "initial index");
-        SpanEvent spanEvent = factory.newInstance();
-        int index = callStack.push(spanEvent);
-        assertEquals(index, 1, "initial index");
-        callStack.pop();
-    }
+    public void testPush() throws Exception {
+        final Span span = createSpan();
 
+        CallStack callStack = new CallStack(span);
+        int initialIndex = callStack.getStackFrameIndex();
+        Assert.assertEquals("initial index", initialIndex, -1);
+
+        callStack.push();
+
+        SpanEventStackFrame spanEventStackFrame = createSpanEventStackFrame(span);
+        callStack.setStackFrame(spanEventStackFrame);
+
+        callStack.popRoot();
+    }
 
     @Test
     public void testLargePush() {
-        CallStack<SpanEvent> callStack = newCallStack();
-        int initialIndex = callStack.getIndex();
-        assertEquals(initialIndex, 0, "initial index");
+        final Span span = createSpan();
+
+        CallStack callStack = new CallStack(span);
+        int initialIndex = callStack.getStackFrameIndex();
+        Assert.assertEquals("initial index", initialIndex, -1);
 
         final int pushCount = 32;
-        for (int i = 0; i < pushCount; i++) {
-            int push = callStack.push(getSpanEvent());
-            assertEquals(i + 1, push, "push index");
+        for(int i = 0; i< pushCount; i++) {
+            int push = callStack.push();
+            Assert.assertEquals("push index", i, push);
+
+            SpanEventStackFrame stackFrame = createSpanEventStackFrame(span);
+            callStack.setStackFrame(stackFrame);
+
             int index = callStack.getIndex();
-            assertEquals(i + 1, index, "index");
+            Assert.assertEquals("index", i, index);
         }
-        for (int i = 0; i < pushCount - 1; i++) {
+        for(int i = 0; i< pushCount-1; i++) {
             callStack.pop();
         }
-        callStack.pop();
+        callStack.popRoot();
     }
+
+
 
     @Test
     public void testPushPop1() {
-        CallStack<SpanEvent> callStack = newCallStack();
+        CallStack callStack = new CallStack(new Span());
 
-        callStack.push(getSpanEvent());
-        callStack.pop();
+        callStack.push();
+        callStack.popRoot();
+
     }
 
     @Test
     public void testPushPop2() {
-        CallStack<SpanEvent> callStack = newCallStack();
+        CallStack callStack = new CallStack(new Span());
 
-        callStack.push(getSpanEvent());
-        callStack.push(getSpanEvent());
+        callStack.push();
+        callStack.push();
 
         callStack.pop();
-        callStack.pop();
+        callStack.popRoot();
+
+    }
+
+    @Test
+    public void testRootPop_fail() {
+        CallStack callStack = new CallStack(new Span());
+
+        callStack.push();
+        callStack.push();
+
+        try {
+            callStack.popRoot();
+            Assert.fail("invalid popRoot");
+        } catch (Exception e) {
+        }
+
     }
 
     @Test
     public void testPop_Fail() {
-        CallStack<SpanEvent> callStack = newCallStack();
+        CallStack callStack = new CallStack(new Span());
 
-        callStack.push(getSpanEvent());
-        callStack.push(getSpanEvent());
+        callStack.push();
+        callStack.push();
 
         callStack.pop();
-        callStack.pop();
-        assertNull(callStack.pop());
-    }
 
-    @Test
-    public void newInstance() {
-        CallStack<SpanEvent> callStack = newCallStack(0);
-        SpanEvent spanEvent1 = callStack.newInstance();
-        callStack.push(spanEvent1);
+        StackFrame lastPop = callStack.pop();
+        Assert.assertNull(lastPop);
 
-        SpanEvent spanEvent2 = callStack.newInstance();
-        assertTrue(callStack.isDisable(spanEvent2));
-    }
-
-    @Test
-    public void overflow() {
-        final int maxDepth = 3;
-
-        DefaultCallStack<SpanEvent> callStack = (DefaultCallStack<SpanEvent>) newCallStack(maxDepth);
-        assertEquals(maxDepth, callStack.getMaxDepth());
-
-        for (int i = 0; i < maxDepth; i++) {
-            assertEquals(i + 1, callStack.push(getSpanEvent()));
-        }
-        // overflow
-        int overflowIndex = callStack.push(getSpanEvent());
-        assertEquals(maxDepth + 1, overflowIndex);
-        assertEquals(maxDepth + 1, callStack.getIndex());
-
-        assertTrue(callStack.isOverflow());
-        assertNotNull(callStack.peek());
-        // check inner index value.
-        logger.debug("{}", callStack);
-
-        assertNotNull(callStack.pop());
-        assertEquals(maxDepth, callStack.getIndex());
-
-        // normal
-        for (int i = maxDepth; i > 0; i--) {
-            assertNotNull(callStack.peek());
-            assertNotNull(callStack.pop());
-            assertEquals(i - 1, callStack.getIndex());
-        }
-
-        // low overflow
-        assertNull(callStack.pop());
-        assertNull(callStack.peek());
-    }
-
-    @Test
-    public void overflow2() {
-        final int maxDepth = 4;
-        final int maxSequence = maxDepth * 2;
-
-        DefaultCallStack<SpanEvent> callStack = (DefaultCallStack<SpanEvent>) newCallStack(maxDepth, maxSequence);
-        assertEquals(maxDepth, callStack.getMaxDepth());
-        assertEquals(maxSequence, callStack.getMaxSequence());
-
-        for (int i = 0; i < maxDepth + 3; i++) {
-            callStack.push(getSpanEvent());
-        }
-
-        for (int i = 0; i < maxDepth + 3; i++) {
+        try {
             callStack.pop();
-        }
-
-        for (int i = 0; i < maxDepth - 1; i++) {
-            callStack.push(getSpanEvent());
-        }
-
-        // overflow by sequence
-        assertEquals(maxDepth - 1, callStack.getIndex());
-        assertTrue(callStack.isOverflow());
-        assertFalse(callStack.isDisable(callStack.peek()));
-
-        callStack.push(getSpanEvent());
-        assertEquals(maxDepth, callStack.getIndex());
-        assertTrue(callStack.isDisable(callStack.peek()));
-        assertTrue(callStack.isDisable(callStack.pop()));
-
-        for (int i = maxDepth - 1; i > 0; i--) {
-            assertNotNull(callStack.peek());
-            assertFalse(callStack.isDisable(callStack.peek()));
-            SpanEvent element = callStack.pop();
-            assertNotNull(element);
-            assertFalse(callStack.isDisable(element));
-            assertTrue(callStack.isOverflow());
+            Assert.fail("invalid pop");
+        } catch (Exception e) {
         }
     }
 }

@@ -16,28 +16,29 @@
 
 package com.navercorp.pinpoint.rpc.server;
 
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.navercorp.pinpoint.rpc.common.SocketState;
 import com.navercorp.pinpoint.rpc.common.SocketStateChangeResult;
 import com.navercorp.pinpoint.rpc.common.SocketStateCode;
-import com.navercorp.pinpoint.rpc.server.handler.ServerStateChangeEventHandler;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
-
-import java.util.List;
+import com.navercorp.pinpoint.rpc.server.handler.ChannelStateChangeEventHandler;
 
 /**
  * @author Taejin Koo
  */
 public class DefaultPinpointServerState {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final DefaultPinpointServer pinpointServer;
-    private final List<ServerStateChangeEventHandler> stateChangeEventListeners;
+    private final List<ChannelStateChangeEventHandler> stateChangeEventListeners;
 
     private final SocketState state;
 
-    public DefaultPinpointServerState(DefaultPinpointServer pinpointServer, List<ServerStateChangeEventHandler> stateChangeEventListeners) {
+    public DefaultPinpointServerState(DefaultPinpointServer pinpointServer, List<ChannelStateChangeEventHandler> stateChangeEventListeners) {
         this.pinpointServer = pinpointServer;
         this.stateChangeEventListeners = stateChangeEventListeners;
         
@@ -95,7 +96,7 @@ public class DefaultPinpointServerState {
     }
 
     SocketStateChangeResult toErrorUnknown() {
-        SocketStateCode nextState = SocketStateCode.ERROR_UNKNOWN;
+        SocketStateCode nextState = SocketStateCode.ERROR_UNKOWN;
         return to(nextState);
     }
 
@@ -109,7 +110,7 @@ public class DefaultPinpointServerState {
         
         logger.debug("{} stateTo() started. to:{}", objectUniqName, nextState);
 
-        SocketStateChangeResult stateChangeResult = state.to(nextState);
+        SocketStateChangeResult stateChangeResult = state.changeState(nextState);
         if (stateChangeResult.isChange()) {
             executeChangeEventHandler(pinpointServer, nextState);
         }
@@ -120,11 +121,11 @@ public class DefaultPinpointServerState {
     }
 
     private void executeChangeEventHandler(DefaultPinpointServer pinpointServer, SocketStateCode nextState) {
-        for (ServerStateChangeEventHandler eachListener : this.stateChangeEventListeners) {
+        for (ChannelStateChangeEventHandler eachListener : this.stateChangeEventListeners) {
             try {
-                eachListener.stateUpdated(pinpointServer, nextState);
+                eachListener.eventPerformed(pinpointServer, nextState);
             } catch (Exception e) {
-                logger.warn("Please handling exception in stateUpdated method. message:{}", e.getMessage(), e);
+                eachListener.exceptionCaught(pinpointServer, nextState, e);
             }
         }
     }

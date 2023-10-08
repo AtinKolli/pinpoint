@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,19 +16,19 @@
 
 package com.navercorp.pinpoint.profiler.receiver;
 
-import com.navercorp.pinpoint.profiler.receiver.grpc.ProfilerGrpcCommandService;
-
-import java.util.Set;
+import org.apache.thrift.TBase;
 
 /**
  * @author koo.taejin
  */
-public interface ProfilerCommandServiceLocator<REQ, RES> {
+public interface ProfilerCommandServiceLocator {
 
-    ProfilerCommandService getService(short commandCode);
+    ProfilerCommandService getService(TBase tBase);
 
-    ProfilerGrpcCommandService getGrpcService(short commandCode);
+    ProfilerSimpleCommandService getSimpleService(TBase tBase);
 
-    Set<Short> getCommandServiceCodes();
+    ProfilerRequestCommandService getRequestService(TBase tBase);
+
+    ProfilerStreamCommandService getStreamService(TBase tBase);
 
 }

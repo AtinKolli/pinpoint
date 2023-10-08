@@ -16,92 +16,47 @@
 
 package com.navercorp.pinpoint.web.filter;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.navercorp.pinpoint.web.filter.deserializer.FilterHintListJsonDeserializer;
-
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 
 /**
- * Hint for filtering
- *
+ * Hint for fitering
+ * 
  * @author netspider
- *
+ * 
  */
-@JsonDeserialize(using = FilterHintListJsonDeserializer.class)
-public class FilterHint {
+// FIXME don't know how to implement deserializer like this.
+public class FilterHint extends HashMap<String, List<Object>> {
+
+    private static final long serialVersionUID = -8765645836014210889L;
 
     public static final String EMPTY_JSON = "{}";
 
-    private final List<RpcHint> rpcHintList;
-
-
-    public FilterHint(List<RpcHint> rpcHintList) {
-        if (rpcHintList == null) {
-            rpcHintList = Collections.emptyList();
-        }
-        this.rpcHintList = rpcHintList;
-    }
-
-
-    public List<RpcHint> getRpcHintList(String targetApplicationName) {
-        Objects.requireNonNull(targetApplicationName, "targetApplicationName");
-
-        final List<RpcHint> findRpcHintList = new ArrayList<>();
-        for (RpcHint rpcHint : rpcHintList) {
-            // TODO miss serviceType
-            if (rpcHint.getApplicationName().equals(targetApplicationName)) {
-                findRpcHintList.add(rpcHint);
-            }
-        }
-        return findRpcHintList;
-    }
-
-
     public boolean containApplicationHint(String applicationName) {
-        for (RpcHint rpcHint : rpcHintList) {
-            if(rpcHint.getApplicationName().equals(applicationName)) {
-                return true;
-            }
-        }
-        return false;
-    }
+        List<Object> list = get(applicationName);
 
+        if (list == null) {
+            return false;
+        } else {
+            return !list.isEmpty();
+        }
+    }
 
     public boolean containApplicationEndpoint(String applicationName, String endPoint, int serviceTypeCode) {
         if (!containApplicationHint(applicationName)) {
             return false;
         }
 
-        if (endPoint == null) {
-            return false;
-        }
+        List<Object> list = get(applicationName);
 
-        for (RpcHint rpcHint : rpcHintList) {
-            if (rpcHint.getApplicationName().equals(applicationName)) {
-                for (RpcType rpcType : rpcHint.getRpcTypeList()) {
-                    if (rpcType.isMatched(endPoint, serviceTypeCode)) {
-                        return true;
-                    }
+        for (int i = 0; i < list.size(); i += 2) {
+            if (endPoint.equals(list.get(i))) {
+                if (serviceTypeCode == (Integer) list.get(i + 1)) {
+                    return true;
                 }
             }
-
         }
+
         return false;
-    }
-
-
-    public int size() {
-        return rpcHintList.size();
-    }
-
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("FilterHint{");
-        sb.append("rpcHintList=").append(rpcHintList);
-        sb.append('}');
-        return sb.toString();
     }
 }

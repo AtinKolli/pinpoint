@@ -17,7 +17,6 @@
 package com.navercorp.pinpoint.web.dao;
 
 import java.util.List;
-import java.util.Map;
 
 import com.navercorp.pinpoint.web.vo.Application;
 
@@ -29,13 +28,9 @@ import com.navercorp.pinpoint.web.vo.Application;
 public interface ApplicationIndexDao {
     List<Application> selectAllApplicationNames();
 
-    List<Application> selectApplicationName(String applicationName);
-
     List<String> selectAgentIds(String applicationName);
 
     void deleteApplicationName(String applicationName);
-
-    void deleteAgentIds(Map<String, List<String>> applicationAgentIdMap);
 
     void deleteAgentId(String applicationName, String agentId);
 }

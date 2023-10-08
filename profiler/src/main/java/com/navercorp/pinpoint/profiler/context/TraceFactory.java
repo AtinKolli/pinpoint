@@ -1,11 +1,11 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,35 +18,26 @@ package com.navercorp.pinpoint.profiler.context;
 
 import com.navercorp.pinpoint.bootstrap.context.Trace;
 import com.navercorp.pinpoint.bootstrap.context.TraceId;
-import com.navercorp.pinpoint.common.annotations.InterfaceAudience;
 
 /**
- * @author Woonduk Kang(emeroad)
+ * @author emeroad
  */
 public interface TraceFactory {
-
     Trace currentTraceObject();
 
-    Trace currentRawTraceObject();
+    Trace currentRpcTraceObject();
 
-    Trace removeTraceObject();
+    Trace currentRawTraceObject();
 
     Trace disableSampling();
 
     // picked as sampling target at remote
-    Trace continueTraceObject(TraceId traceId);
+    Trace continueTraceObject(TraceId traceID);
 
-    Trace continueTraceObject(Trace trace);
-
-    @InterfaceAudience.LimitedPrivate("vert.x")
-    Trace continueAsyncTraceObject(TraceId traceId);
-
+    Trace continueAsyncTraceObject(TraceId traceId, int asyncId, long startTime);
+    
     Trace newTraceObject();
 
-    Trace newTraceObject(String urlPath);
-
-    @InterfaceAudience.LimitedPrivate("vert.x")
-    Trace newAsyncTraceObject();
-
-    Trace newAsyncTraceObject(String urlPath);
+    void attachTraceObject(Trace trace);
+    void detachTraceObject();
 }

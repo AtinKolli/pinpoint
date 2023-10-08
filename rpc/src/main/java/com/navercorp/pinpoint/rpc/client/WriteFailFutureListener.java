@@ -18,9 +18,7 @@ package com.navercorp.pinpoint.rpc.client;
 
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
-import org.apache.logging.log4j.Logger;
-
-import java.util.Objects;
+import org.slf4j.Logger;
 
 /**
  * @author emeroad
@@ -36,7 +34,10 @@ public class WriteFailFutureListener implements ChannelFutureListener {
     }
 
     public WriteFailFutureListener(Logger logger, String failMessage, String successMessage) {
-        this.logger = Objects.requireNonNull(logger, "logger");
+        if (logger == null) {
+            throw new NullPointerException("logger must not be null");
+        }
+        this.logger = logger;
         this.failMessage = failMessage;
         this.successMessage = successMessage;
     }

@@ -16,12 +16,15 @@
 
 package com.navercorp.pinpoint.web.util;
 
-import com.navercorp.pinpoint.common.server.util.time.Range;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import com.navercorp.pinpoint.web.util.DateLimiter;
+import com.navercorp.pinpoint.web.util.Limiter;
+import com.navercorp.pinpoint.web.vo.Range;
 
-import java.time.Duration;
-import java.time.Instant;
+import org.junit.Assert;
+
+import org.junit.Test;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author emeroad
@@ -30,54 +33,58 @@ public class DateLimiterTest {
 
     @Test
     public void check() {
-        Limiter limiter = new DateLimiter(Duration.ofDays(2));
+        Limiter limiter = new DateLimiter(2);
 
-        limiter.limit(Instant.EPOCH, ofDays(2));
+        limiter.limit(0, TimeUnit.DAYS.toMillis(2));
 
-        Instant time = Instant.ofEpochMilli(1000);
-        limiter.limit(time, time.plus(Duration.ofDays(2)));
+        long time = 1000;
+        limiter.limit(time, time + TimeUnit.DAYS.toMillis(2));
 
-        limiter.limit(ofDays(2), ofDays(2));
+        limiter.limit(TimeUnit.DAYS.toMillis(2), TimeUnit.DAYS.toMillis(2));
     }
 
     @Test
     public void checkRange() {
-        Limiter limiter = new DateLimiter(Duration.ofDays(2));
+        Limiter limiter = new DateLimiter(2);
 
-        limiter.limit(Range.between(Instant.EPOCH, ofDays(2)));
+        limiter.limit(new Range(0, TimeUnit.DAYS.toMillis(2)));
 
-        Instant time = Instant.ofEpochMilli(1000);
-        limiter.limit(Range.between(time, time.plus(Duration.ofDays(2))));
+        long time = 1000;
+        limiter.limit(new Range(time, time + TimeUnit.DAYS.toMillis(2)));
 
-        limiter.limit(Range.between(ofDays(2), ofDays(2)));
+        limiter.limit(new Range(TimeUnit.DAYS.toMillis(2), TimeUnit.DAYS.toMillis(2)));
     }
 
     @Test
     public void checkFail() {
-        Limiter limiter = new DateLimiter(Duration.ofDays(2));
-        Assertions.assertThrows(Exception.class, () -> {
-            limiter.limit(Instant.EPOCH, ofDays(2).plusMillis(1));
-        });
+        Limiter limiter = new DateLimiter(2);
+        try {
+            limiter.limit(0, TimeUnit.DAYS.toMillis(2) + 1);
+            Assert.fail();
+        } catch (Exception e) {
+        }
 
-        Assertions.assertThrows(Exception.class, () -> {
-            limiter.limit(ofDays(2), Instant.EPOCH);
-        });
+        try {
+            limiter.limit(TimeUnit.DAYS.toMillis(2), 0);
+            Assert.fail();
+        } catch (Exception e) {
+        }
     }
 
     @Test
     public void checkRangeFail() {
-        Limiter limiter = new DateLimiter(Duration.ofDays(2));
+        Limiter limiter = new DateLimiter(2);
+        try {
+            limiter.limit(new Range(0, TimeUnit.DAYS.toMillis(2) + 1));
+            Assert.fail();
+        } catch (Exception e) {
+        }
 
-        Assertions.assertThrows(Exception.class, () -> {
-            limiter.limit(Range.between(Instant.EPOCH, ofDays(2).plusMillis(1)));
-        });
-
-        Assertions.assertThrows(Exception.class, () -> {
-            limiter.limit(Range.between(ofDays(2), Instant.EPOCH));
-        });
+        try {
+            limiter.limit(new Range(TimeUnit.DAYS.toMillis(2), 0));
+            Assert.fail();
+        } catch (Exception e) {
+        }
     }
 
-    private Instant ofDays(long days) {
-        return Instant.EPOCH.plus(Duration.ofDays(days));
-    }
 }

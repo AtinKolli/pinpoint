@@ -17,15 +17,15 @@
 package com.navercorp.pinpoint.profiler.interceptor.bci;
 
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author emeroad
  */
 public class TestLog {
 
-    private final Logger logger = LogManager.getLogger(TestLog.class);
+    private final Logger logger = LoggerFactory.getLogger(TestLog.class.getName());
 
     public String constructor;
 

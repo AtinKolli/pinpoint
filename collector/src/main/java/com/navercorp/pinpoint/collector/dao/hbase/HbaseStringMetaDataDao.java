@@ -17,76 +17,58 @@
 package com.navercorp.pinpoint.collector.dao.hbase;
 
 import com.navercorp.pinpoint.collector.dao.StringMetaDataDao;
-import com.navercorp.pinpoint.collector.util.CollectorUtils;
-import com.navercorp.pinpoint.common.hbase.HbaseColumnFamily;
+import com.navercorp.pinpoint.common.bo.StringMetaDataBo;
+import com.navercorp.pinpoint.common.hbase.HBaseTables;
 import com.navercorp.pinpoint.common.hbase.HbaseOperations2;
-import com.navercorp.pinpoint.common.hbase.TableNameProvider;
-import com.navercorp.pinpoint.common.server.bo.StringMetaDataBo;
-
-import com.navercorp.pinpoint.common.server.bo.serializer.RowKeyEncoder;
-import com.navercorp.pinpoint.common.server.bo.serializer.metadata.MetaDataRowKey;
-import com.navercorp.pinpoint.common.server.bo.serializer.metadata.MetadataEncoder;
+import com.navercorp.pinpoint.thrift.dto.TStringMetaData;
 import com.sematext.hbase.wd.RowKeyDistributorByHashPrefix;
-import org.apache.hadoop.hbase.TableName;
+
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
 
-import java.util.Objects;
-
 /**
  * @author emeroad
- * @author minwoo.jung
  */
 @Repository
 public class HbaseStringMetaDataDao implements StringMetaDataDao {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private static final HbaseColumnFamily.StringMetadataStr DESCRIPTOR = HbaseColumnFamily.STRING_METADATA_STR;
+    @Autowired
+    private HbaseOperations2 hbaseTemplate;
 
-    private final HbaseOperations2 hbaseTemplate;
-    private final TableNameProvider tableNameProvider;
-
-
-    private final RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix;
-
-    private final RowKeyEncoder<MetaDataRowKey> rowKeyEncoder = new MetadataEncoder();
-
-    public HbaseStringMetaDataDao(HbaseOperations2 hbaseTemplate,
-                                  TableNameProvider tableNameProvider,
-                                  @Qualifier("metadataRowKeyDistributor") RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix) {
-        this.hbaseTemplate = Objects.requireNonNull(hbaseTemplate, "hbaseTemplate");
-        this.tableNameProvider = Objects.requireNonNull(tableNameProvider, "tableNameProvider");
-        this.rowKeyDistributorByHashPrefix = Objects.requireNonNull(rowKeyDistributorByHashPrefix, "rowKeyDistributorByHashPrefix");
-    }
+    @Autowired
+    @Qualifier("metadataRowKeyDistributor")
+    private RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix;
 
     @Override
-    public void insert(StringMetaDataBo stringMetaData) {
-        Objects.requireNonNull(stringMetaData, "stringMetaData");
+    public void insert(TStringMetaData stringMetaData) {
+        if (stringMetaData == null) {
+            throw new NullPointerException("stringMetaData must not be null");
+        }
         if (logger.isDebugEnabled()) {
             logger.debug("insert:{}", stringMetaData);
         }
 
-        // Assert agentId
-        CollectorUtils.checkAgentId(stringMetaData.getAgentId());
+        final StringMetaDataBo stringMetaDataBo = new StringMetaDataBo(stringMetaData.getAgentId(), stringMetaData.getAgentStartTime(), stringMetaData.getStringId());
+        final byte[] rowKey = getDistributedKey(stringMetaDataBo.toRowKey());
 
-        final byte[] rowKey = getDistributedKey(rowKeyEncoder.encodeRowKey(stringMetaData));
-        final Put put = new Put(rowKey);
-        final String stringValue = stringMetaData.getStringValue();
-        final byte[] sqlBytes = Bytes.toBytes(stringValue);
-        put.addColumn(DESCRIPTOR.getName(), DESCRIPTOR.QUALIFIER_STRING, sqlBytes);
 
-        final TableName stringMetaDataTableName = tableNameProvider.getTableName(DESCRIPTOR.getTable());
-        hbaseTemplate.put(stringMetaDataTableName, put);
+        Put put = new Put(rowKey);
+        String stringValue = stringMetaData.getStringValue();
+        byte[] sqlBytes = Bytes.toBytes(stringValue);
+        // added sqlBytes into qualifier intentionally not to conflict hashcode
+        put.add(HBaseTables.STRING_METADATA_CF_STR, sqlBytes, null);
+
+        hbaseTemplate.put(HBaseTables.STRING_METADATA, put);
     }
 
     private byte[] getDistributedKey(byte[] rowKey) {
         return rowKeyDistributorByHashPrefix.getDistributedKey(rowKey);
     }
-
-
 }

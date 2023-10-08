@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,63 +16,69 @@
 
 package com.navercorp.pinpoint.collector.cluster;
 
+import javax.annotation.PreDestroy;
+
+import org.apache.thrift.TBase;
+import org.jboss.netty.channel.Channel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import com.navercorp.pinpoint.collector.cluster.route.DefaultRouteHandler;
+import com.navercorp.pinpoint.collector.cluster.route.LoggingFilter;
 import com.navercorp.pinpoint.collector.cluster.route.RequestEvent;
+import com.navercorp.pinpoint.collector.cluster.route.RouteResult;
+import com.navercorp.pinpoint.collector.cluster.route.RouteStatus;
 import com.navercorp.pinpoint.collector.cluster.route.StreamEvent;
 import com.navercorp.pinpoint.collector.cluster.route.StreamRouteHandler;
-import com.navercorp.pinpoint.io.request.Message;
-import com.navercorp.pinpoint.rpc.MessageListener;
-import com.navercorp.pinpoint.rpc.PinpointSocket;
+import com.navercorp.pinpoint.rpc.client.MessageListener;
 import com.navercorp.pinpoint.rpc.packet.RequestPacket;
+import com.navercorp.pinpoint.rpc.packet.ResponsePacket;
 import com.navercorp.pinpoint.rpc.packet.SendPacket;
+import com.navercorp.pinpoint.rpc.packet.stream.BasicStreamPacket;
 import com.navercorp.pinpoint.rpc.packet.stream.StreamClosePacket;
-import com.navercorp.pinpoint.rpc.packet.stream.StreamCode;
+import com.navercorp.pinpoint.rpc.packet.stream.StreamCreateFailPacket;
 import com.navercorp.pinpoint.rpc.packet.stream.StreamCreatePacket;
-import com.navercorp.pinpoint.rpc.stream.ServerStreamChannel;
-import com.navercorp.pinpoint.rpc.stream.ServerStreamChannelMessageHandler;
+import com.navercorp.pinpoint.rpc.stream.ServerStreamChannelContext;
+import com.navercorp.pinpoint.rpc.stream.ServerStreamChannelMessageListener;
 import com.navercorp.pinpoint.thrift.dto.TResult;
 import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
-import com.navercorp.pinpoint.thrift.dto.command.TCommandTransferResponse;
-import com.navercorp.pinpoint.thrift.dto.command.TRouteResult;
 import com.navercorp.pinpoint.thrift.io.DeserializerFactory;
 import com.navercorp.pinpoint.thrift.io.HeaderTBaseDeserializer;
 import com.navercorp.pinpoint.thrift.io.HeaderTBaseSerializer;
 import com.navercorp.pinpoint.thrift.io.SerializerFactory;
 import com.navercorp.pinpoint.thrift.util.SerializationUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.thrift.TBase;
-
-import javax.annotation.PreDestroy;
-import java.util.Objects;
 
 /**
  * @author koo.taejin
- * @author HyunGil Jeong
  */
-public class ClusterPointRouter extends ServerStreamChannelMessageHandler implements MessageListener {
+public class ClusterPointRouter implements MessageListener, ServerStreamChannelMessageListener {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final ClusterPointRepository<ClusterPoint<?>> targetClusterPointRepository;
+    private final ClusterPointRepository<TargetClusterPoint> targetClusterPointRepository;
 
     private final DefaultRouteHandler routeHandler;
     private final StreamRouteHandler streamRouteHandler;
 
-    private final SerializerFactory<HeaderTBaseSerializer> commandSerializerFactory;
+    @Autowired
+    private SerializerFactory<HeaderTBaseSerializer> commandSerializerFactory;
 
-    private final DeserializerFactory<HeaderTBaseDeserializer> commandDeserializerFactory;
+    @Autowired
+    private DeserializerFactory<HeaderTBaseDeserializer> commandDeserializerFactory;
 
-    public ClusterPointRouter(ClusterPointRepository<ClusterPoint<?>> targetClusterPointRepository,
-                              DefaultRouteHandler defaultRouteHandler,
-                              StreamRouteHandler streamRouteHandler,
-                              SerializerFactory<HeaderTBaseSerializer> commandSerializerFactory,
-                              DeserializerFactory<HeaderTBaseDeserializer> commandDeserializerFactory) {
-        this.targetClusterPointRepository = Objects.requireNonNull(targetClusterPointRepository, "targetClusterPointRepository");
-        this.routeHandler = Objects.requireNonNull(defaultRouteHandler, "defaultRouteHandler");
-        this.streamRouteHandler = Objects.requireNonNull(streamRouteHandler, "streamRouteHandler");
-        this.commandSerializerFactory = Objects.requireNonNull(commandSerializerFactory, "commandSerializerFactory");
-        this.commandDeserializerFactory = Objects.requireNonNull(commandDeserializerFactory, "commandDeserializerFactory");
+    public ClusterPointRouter() {
+        this.targetClusterPointRepository = new ClusterPointRepository<TargetClusterPoint>();
+
+        LoggingFilter loggingFilter = new LoggingFilter();
+
+        this.routeHandler = new DefaultRouteHandler(targetClusterPointRepository);
+        this.routeHandler.addRequestFilter(loggingFilter.getRequestFilter());
+        this.routeHandler.addResponseFilter(loggingFilter.getResponseFilter());
+        
+        this.streamRouteHandler = new StreamRouteHandler(targetClusterPointRepository);
+        this.streamRouteHandler.addRequestFilter(loggingFilter.getStreamCreateFilter());
+        this.streamRouteHandler.addResponseFilter(loggingFilter.getResponseFilter());
     }
 
     @PreDestroy
@@ -80,110 +86,105 @@ public class ClusterPointRouter extends ServerStreamChannelMessageHandler implem
     }
 
     @Override
-    public void handleSend(SendPacket sendPacket, PinpointSocket pinpointSocket) {
-        logger.info("handleSend packet:{}, remote:{}", sendPacket, pinpointSocket.getRemoteAddress());
+    public void handleSend(SendPacket packet, Channel channel) {
+        logger.info("Message received {}. channel:{}, packet:{}.", packet.getClass().getSimpleName(), channel, packet);
     }
 
     @Override
-    public void handleRequest(RequestPacket requestPacket, PinpointSocket pinpointSocket) {
-        logger.info("handleRequest packet:{}, remote:{}", requestPacket, pinpointSocket.getRemoteAddress());
-
-        TBase<?, ?> request = deserialize(requestPacket.getPayload());
-        if (request == null) {
-            handleRouteRequestFail("Protocol decoding failed.", requestPacket, pinpointSocket);
-        } else if (request instanceof TCommandTransfer) {
-            handleRouteRequest((TCommandTransfer) request, requestPacket, pinpointSocket);
-        } else {
-            handleRouteRequestFail("Unknown error.", requestPacket, pinpointSocket);
-        }
-    }
-
-    @Override
-    public StreamCode handleStreamCreatePacket(ServerStreamChannel streamChannel, StreamCreatePacket packet) {
-        logger.info("handleStreamCreatePacket() streamChannel:{}, packet:{}", streamChannel, packet);
+    public void handleRequest(RequestPacket packet, Channel channel) {
+        logger.info("Message received {}. channel:{}, packet:{}.", packet.getClass().getSimpleName(), channel, packet);
 
         TBase<?, ?> request = deserialize(packet.getPayload());
         if (request == null) {
-            return StreamCode.TYPE_UNKNOWN;
+            handleRouteRequestFail("Protocol decoding failed.", packet, channel);
         } else if (request instanceof TCommandTransfer) {
-            return handleStreamRouteCreate((TCommandTransfer) request, streamChannel);
+            handleRouteRequest((TCommandTransfer) request, packet, channel);
         } else {
-            return StreamCode.TYPE_UNSUPPORT;
+            handleRouteRequestFail("Unknown error.", packet, channel);
         }
     }
-
+    
     @Override
-    public void handleStreamClosePacket(ServerStreamChannel streamChannel, StreamClosePacket packet) {
-        logger.info("handleStreamClosePacket() streamChannel:{}, packet:{}", streamChannel, packet);
+    public short handleStreamCreate(ServerStreamChannelContext streamChannelContext, StreamCreatePacket packet) {
+        logger.info("Message received {}. streamChannel:{}, packet:{}.", packet.getClass().getSimpleName(), streamChannelContext, packet);
 
-        streamRouteHandler.close(streamChannel);
-    }
-
-    private void handleRouteRequest(TCommandTransfer request, RequestPacket requestPacket, PinpointSocket pinpointSocket) {
-        logger.info("handleRouteRequest() request:{}, remote:{}", request, pinpointSocket.getRemoteAddress());
-        
-        byte[] payload = request.getPayload();
-        TBase<?, ?> command = deserialize(payload);
-
-        RequestEvent event = new RequestEvent(request, pinpointSocket.getRemoteAddress(), requestPacket.getRequestId(), command);
-        TCommandTransferResponse response = routeHandler.onRoute(event);
-        pinpointSocket.response(requestPacket.getRequestId(), serialize(response));
-
-        if (response.getRouteResult() != TRouteResult.OK) {
-            throw new RuntimeException("RouteResult is not OK");
+        TBase<?, ?> request = deserialize(packet.getPayload());
+        if (request == null) {
+            return StreamCreateFailPacket.PACKET_ERROR;
+        } else if (request instanceof TCommandTransfer) {
+            return handleStreamRouteCreate((TCommandTransfer) request, packet, streamChannelContext);
+        } else {
+            return StreamCreateFailPacket.UNKNWON_ERROR;
         }
     }
+    
+    @Override
+    public void handleStreamClose(ServerStreamChannelContext streamChannelContext, StreamClosePacket packet) {
+        logger.info("Message received {}. streamChannel:{}, packet:{}.", packet.getClass().getSimpleName(), streamChannelContext, packet);
 
-    private void handleRouteRequestFail(String message, RequestPacket requestPacket, PinpointSocket pinpointSocket) {
+        streamRouteHandler.close(streamChannelContext);
+    }
+
+    private boolean handleRouteRequest(TCommandTransfer request, RequestPacket requestPacket, Channel channel) {
+        byte[] payload = ((TCommandTransfer) request).getPayload();
+        TBase command = deserialize(payload);
+
+        RouteResult routeResult = routeHandler.onRoute(new RequestEvent((TCommandTransfer) request, channel, requestPacket.getRequestId(), command));
+
+        if (RouteStatus.OK == routeResult.getStatus()) {
+            channel.write(new ResponsePacket(requestPacket.getRequestId(), routeResult.getResponseMessage().getMessage()));
+            return true;
+        } else {
+            TResult result = new TResult(false);
+            result.setMessage(routeResult.getStatus().getReasonPhrase());
+
+            channel.write(new ResponsePacket(requestPacket.getRequestId(), serialize(result)));
+            return false;
+        }
+    }
+    
+    private void handleRouteRequestFail(String message, RequestPacket requestPacket, Channel channel) {
         TResult tResult = new TResult(false);
         tResult.setMessage(message);
 
-        pinpointSocket.response(requestPacket.getRequestId(), serialize(tResult));
+        channel.write(new ResponsePacket(requestPacket.getRequestId(), serialize(tResult)));
+    }
+    
+    private short handleStreamRouteCreate(TCommandTransfer request, StreamCreatePacket packet, ServerStreamChannelContext streamChannelContext) {
+        byte[] payload = ((TCommandTransfer) request).getPayload();
+        TBase command = deserialize(payload);
+
+        RouteResult routeResult = streamRouteHandler.onRoute(new StreamEvent((TCommandTransfer) request, streamChannelContext, command));
+        
+        RouteStatus status = routeResult.getStatus();
+        switch (status) {
+            case OK:
+                return BasicStreamPacket.SUCCESS;
+            case BAD_REQUEST:
+                return StreamCreateFailPacket.PACKET_ERROR;
+            case NOT_FOUND:
+                return StreamCreateFailPacket.ROUTE_NOT_FOUND;
+            case NOT_ACCEPTABLE:
+                return StreamCreateFailPacket.ROUTE_PACKET_UNSUPPORT;
+            case NOT_ACCEPTABLE_UNKNOWN:
+                return StreamCreateFailPacket.ROUTE_CONNECTION_ERROR;
+            case NOT_ACCEPTABLE_AGENT_TYPE:
+                return StreamCreateFailPacket.ROUTE_TYPE_UNKOWN;
+            default:
+                return StreamCreateFailPacket.UNKNWON_ERROR;
+        }
     }
 
-    private StreamCode handleStreamRouteCreate(TCommandTransfer request, ServerStreamChannel serverStreamChannel) {
-        byte[] payload = request.getPayload();
-        TBase<?, ?> command = deserialize(payload);
-        if (command == null) {
-            return StreamCode.TYPE_UNKNOWN;
-        }
-
-        TCommandTransferResponse response = streamRouteHandler.onRoute(new StreamEvent(request, serverStreamChannel, command));
-        TRouteResult routeResult = response.getRouteResult();
-        if (routeResult != TRouteResult.OK) {
-            logger.warn("handleStreamRouteCreate failed. command:{}, routeResult:{}", command, routeResult);
-            return convertToStreamCode(routeResult);
-        }
-
-        return StreamCode.OK;
-    }
-
-    public ClusterPointRepository<ClusterPoint<?>> getTargetClusterPointRepository() {
+    public ClusterPointRepository<TargetClusterPoint> getTargetClusterPointRepository() {
         return targetClusterPointRepository;
     }
 
-    private byte[] serialize(TBase<?, ?> result) {
+    private byte[] serialize(TBase result) {
         return SerializationUtils.serialize(result, commandSerializerFactory, null);
     }
 
-    private TBase<?, ?> deserialize(byte[] objectData) {
-        final Message<TBase<?, ?>> deserialize = SerializationUtils.deserialize(objectData, commandDeserializerFactory, null);
-        if (deserialize == null) {
-            return null;
-        }
-        return deserialize.getData();
-    }
-
-    private StreamCode convertToStreamCode(TRouteResult routeResult) {
-        switch (routeResult) {
-            case NOT_SUPPORTED_REQUEST:
-                return StreamCode.TYPE_UNSUPPORT;
-            case NOT_ACCEPTABLE:
-            case NOT_SUPPORTED_SERVICE:
-                return StreamCode.CONNECTION_UNSUPPORT;
-            default:
-                return StreamCode.ROUTE_ERROR;
-        }
+    private TBase deserialize(byte[] objectData) {
+        return SerializationUtils.deserialize(objectData, commandDeserializerFactory, null);
     }
 
 }

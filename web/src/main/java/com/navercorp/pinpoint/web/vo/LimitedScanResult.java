@@ -16,8 +16,6 @@
 
 package com.navercorp.pinpoint.web.vo;
 
-import java.util.Objects;
-
 /**
  * 
  * @author netspider
@@ -26,22 +24,24 @@ import java.util.Objects;
  */
 public class LimitedScanResult<V> {
 
-    private final long limitedTime;
-    private final V data;
-
-    public LimitedScanResult(long limitedTime, V data) {
-        this.limitedTime = limitedTime;
-        this.data = Objects.requireNonNull(data, "data");
-    }
+    private long limitedTime;
+    private V data;
 
     public V getScanData() {
         return data;
+    }
+
+    public void setScanData(V scanData) {
+        this.data = scanData;
     }
 
     public long getLimitedTime() {
         return limitedTime;
     }
 
+    public void setLimitedTime(long limitedTime) {
+        this.limitedTime = limitedTime;
+    }
 
     @Override
     public String toString() {

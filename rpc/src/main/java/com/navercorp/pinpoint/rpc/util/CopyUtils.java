@@ -37,7 +37,7 @@ public final class CopyUtils {
     }
 
     public static Map<Object, Object> mediumCopyMap(Map<Object, Object> original) {
-        Map<Object, Object> result = new LinkedHashMap<>();
+        Map<Object, Object> result = new LinkedHashMap<Object, Object>();
 
         for (Map.Entry<Object, Object> entry : original.entrySet()) {
             Object key = entry.getKey();
@@ -49,7 +49,7 @@ public final class CopyUtils {
     }
 
     public static Collection<Object> mediumCopyCollection(Collection<Object> original) {
-        return new ArrayList<>(original);
+        return new ArrayList<Object>(original);
     }
 
     private static Object mediumCopy(Object original) {

@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,15 +16,10 @@
 
 package com.navercorp.pinpoint.profiler.context;
 
-import com.navercorp.pinpoint.common.trace.AnnotationKey;
-import com.navercorp.pinpoint.common.util.IntStringValue;
-import com.navercorp.pinpoint.profiler.context.annotation.Annotations;
-import com.navercorp.pinpoint.profiler.context.id.Shared;
-import com.navercorp.pinpoint.profiler.context.id.TraceRoot;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import com.navercorp.pinpoint.bootstrap.context.TraceId;
+import com.navercorp.pinpoint.common.util.TransactionIdUtils;
+import com.navercorp.pinpoint.thrift.dto.TIntStringValue;
+import com.navercorp.pinpoint.thrift.dto.TSpan;
 
 /**
  * Span represent RPC
@@ -32,185 +27,81 @@ import java.util.Objects;
  * @author netspider
  * @author emeroad
  */
-public class Span extends DefaultFrameAttachment implements SpanType {
-    private boolean timeRecording = true;
-
-    private final TraceRoot traceRoot;
-
-    private long startTime; // required
-    private int elapsedTime; // optional
-
-    private int apiId; // optional
-    private short serviceType; // required
-
-    private List<Annotation<?>> annotations; // optional
-    private List<SpanEvent> spanEventList; // optional
-
-    private String remoteAddr; // optional
-
-    private String parentApplicationName; // optional
-    private short parentApplicationType; // optional
-    private String acceptorHost; // optional
-
-    private IntStringValue exceptionInfo; // optional
-
-    public Span(final TraceRoot traceRoot) {
-        this.traceRoot = Objects.requireNonNull(traceRoot, "traceRoot");
+public class Span extends TSpan {
+    public Span() {
     }
 
-    public TraceRoot getTraceRoot() {
-        return traceRoot;
-    }
+    public void recordTraceId(final TraceId traceId) {
+        if (traceId == null) {
+            throw new NullPointerException("traceId must not be null");
+        }
+        final String agentId = this.getAgentId();
+        if (agentId == null) {
+            throw new NullPointerException("agentId must not be null");
+        }
 
+        final String transactionAgentId = traceId.getAgentId();
+        if (!agentId.equals(transactionAgentId)) {
+            this.setTransactionId(TransactionIdUtils.formatBytes(transactionAgentId, traceId.getAgentStartTime(), traceId.getTransactionSequence()));
+        } else {
+            this.setTransactionId(TransactionIdUtils.formatBytes(null, traceId.getAgentStartTime(), traceId.getTransactionSequence()));
+        }
 
-    public long getStartTime() {
-        return startTime;
-    }
-
-    public int getElapsedTime() {
-        return elapsedTime;
-    }
-
-    public void setElapsedTime(int elapsedTime) {
-        this.elapsedTime = elapsedTime;
-    }
-
-    public short getServiceType() {
-        return serviceType;
-    }
-
-    public void setServiceType(short serviceType) {
-        this.serviceType = serviceType;
-    }
-
-    public String getRemoteAddr() {
-        return remoteAddr;
-    }
-
-    public void setRemoteAddr(String remoteAddr) {
-        this.remoteAddr = remoteAddr;
-    }
-
-    public List<Annotation<?>> getAnnotations() {
-        return annotations;
-    }
-
-
-    public List<SpanEvent> getSpanEventList() {
-        return spanEventList;
-    }
-
-    public void setSpanEventList(List<SpanEvent> spanEventList) {
-        this.spanEventList = spanEventList;
-    }
-
-    public String getParentApplicationName() {
-        return parentApplicationName;
-    }
-
-    public void setParentApplicationName(String parentApplicationName) {
-        this.parentApplicationName = parentApplicationName;
-    }
-
-    public short getParentApplicationType() {
-        return parentApplicationType;
-    }
-
-    public void setParentApplicationType(short parentApplicationType) {
-        this.parentApplicationType = parentApplicationType;
-    }
-
-    public String getAcceptorHost() {
-        return acceptorHost;
-    }
-
-    public void setAcceptorHost(String acceptorHost) {
-        this.acceptorHost = acceptorHost;
-    }
-
-    public int getApiId() {
-        return apiId;
-    }
-
-    public void setApiId(int apiId) {
-        this.apiId = apiId;
-    }
-
-    public IntStringValue getExceptionInfo() {
-        return exceptionInfo;
-    }
-
-    public void setExceptionInfo(IntStringValue exceptionInfo) {
-        this.exceptionInfo = exceptionInfo;
+        this.setSpanId(traceId.getSpanId());
+        final long parentSpanId = traceId.getParentSpanId();
+        if (traceId.getParentSpanId() != SpanId.NULL) {
+            this.setParentSpanId(parentSpanId);
+        }
+        this.setFlag(traceId.getFlags());
     }
 
     public void markBeforeTime() {
-        final long spanStartTime = traceRoot.getTraceStartTime();
-        this.setStartTime(spanStartTime);
-    }
-
-    public void setStartTime(long spanStartTime) {
-        this.startTime = spanStartTime;
+        this.setStartTime(System.currentTimeMillis());
     }
 
     public void markAfterTime() {
-        markAfterTime(System.currentTimeMillis());
-    }
-
-    public void markAfterTime(long currentTime) {
-        final int after = (int) (currentTime - this.getStartTime());
-        this.setElapsedTime(after);
-    }
-
-    public void addAnnotation(Annotation<?> annotation) {
-        if (this.annotations == null) {
-            this.annotations = new ArrayList<>();
+        if (!isSetStartTime()) {
+            throw new PinpointTraceException("startTime is not set");
         }
-        this.annotations.add(annotation);
+        final int after = (int)(System.currentTimeMillis() - this.getStartTime());
+
+        // TODO  have to change int to long
+        if (after != 0) {
+            this.setElapsed(after);
+        }
+    }
+
+    public long getAfterTime() {
+        if (!isSetStartTime()) {
+            throw new PinpointTraceException("startTime is not set");
+        }
+        return this.getStartTime() + this.getElapsed();
+    }
+
+
+    public void addAnnotation(Annotation annotation) {
+        this.addToAnnotations(annotation);
     }
 
     public void setExceptionInfo(int exceptionClassId, String exceptionMessage) {
-        final IntStringValue exceptionInfo = new IntStringValue(exceptionClassId, exceptionMessage);
-        this.setExceptionInfo(exceptionInfo);
-    }
-
-    public boolean isTimeRecording() {
-        return timeRecording;
-    }
-
-    public void setTimeRecording(boolean timeRecording) {
-        this.timeRecording = timeRecording;
-    }
-
-    public void finish() {
-        // snapshot last image
-        final Shared shared = traceRoot.getShared();
-        if (shared.getStatusCode() != 0) {
-            Annotation<Integer> annotation = Annotations.of(AnnotationKey.HTTP_STATUS_CODE.getCode(), shared.getStatusCode());
-            this.addAnnotation(annotation);
+        final TIntStringValue exceptionInfo = new TIntStringValue(exceptionClassId);
+        if (exceptionMessage != null && !exceptionMessage.isEmpty()) {
+            exceptionInfo.setStringValue(exceptionMessage);
         }
+        super.setExceptionInfo(exceptionInfo);
     }
 
-    public void clear() {
-
+    public boolean isSetErrCode() {
+        return isSetErr();
     }
 
-    @Override
-    public String toString() {
-        return "Span{" +
-                "timeRecording=" + timeRecording +
-                ", traceRoot=" + traceRoot +
-                ", startTime=" + startTime +
-                ", elapsed=" + elapsedTime +
-                ", serviceType=" + serviceType +
-                ", remoteAddr='" + remoteAddr + '\'' +
-                ", annotations=" + annotations +
-                ", spanEventList=" + spanEventList +
-                ", parentApplicationName='" + parentApplicationName + '\'' +
-                ", parentApplicationType=" + parentApplicationType +
-                ", acceptorHost='" + acceptorHost + '\'' +
-                ", apiId=" + apiId +
-                ", exceptionInfo=" + exceptionInfo +
-                "} " + super.toString();
+    public int getErrCode() {
+        return getErr();
     }
+
+    public void setErrCode(int exception) {
+        super.setErr(exception);
+    }
+
+
 }

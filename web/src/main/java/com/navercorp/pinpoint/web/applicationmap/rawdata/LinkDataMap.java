@@ -16,27 +16,23 @@
 
 package com.navercorp.pinpoint.web.applicationmap.rawdata;
 
-import com.navercorp.pinpoint.web.applicationmap.link.LinkKey;
-import com.navercorp.pinpoint.web.util.TimeWindow;
-import com.navercorp.pinpoint.web.vo.Application;
+import java.util.*;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import com.navercorp.pinpoint.web.vo.Application;
+import com.navercorp.pinpoint.web.vo.LinkKey;
 
 public class LinkDataMap {
-    private final Map<LinkKey, LinkData> linkDataMap = new HashMap<>();
-    private TimeWindow timeWindow;
+    private final Map<LinkKey, LinkData> linkDataMap = new HashMap<LinkKey, LinkData>();
 
     public LinkDataMap() {
-        this(null);
     }
 
-    public LinkDataMap(TimeWindow timeWindow) {
-        this.timeWindow = timeWindow;
+    public LinkDataMap(LinkDataMap copyLinkDataMap) {
+        if (copyLinkDataMap == null) {
+            throw new NullPointerException("copyLinkDataMap must not be null");
+        }
+        addLinkDataMap(copyLinkDataMap);
     }
-
 
     public Collection<LinkData> getLinkDataList() {
         return linkDataMap.values();
@@ -47,22 +43,25 @@ public class LinkDataMap {
         linkData.addLinkData(sourceAgentId, sourceApplication.getServiceType(), destinationAgentId, destinationApplication.getServiceType(), timestamp, slotTime, count);
     }
 
+
     @Override
     public String toString() {
         return "LinkDataMap [" + linkDataMap + "]";
     }
 
     public void addLinkDataMap(LinkDataMap linkDataMap) {
-        Objects.requireNonNull(linkDataMap, "linkDataMap");
-
+        if (linkDataMap == null) {
+            throw new NullPointerException("linkDataMap must not be null");
+        }
         for (LinkData copyLinkData : linkDataMap.linkDataMap.values()) {
             addLinkData(copyLinkData);
         }
     }
 
     public void addLinkData(LinkData copyLinkData) {
-        Objects.requireNonNull(copyLinkData, "copyLinkData");
-
+        if (copyLinkData == null) {
+            throw new NullPointerException("copyLinkData must not be null");
+        }
         Application fromApplication = copyLinkData.getFromApplication();
         Application toApplication = copyLinkData.getToApplication();
         LinkData linkData = getLinkData(fromApplication, toApplication);
@@ -71,16 +70,12 @@ public class LinkDataMap {
 
     private LinkData getLinkData(Application fromApplication, Application toApplication) {
         final LinkKey key = new LinkKey(fromApplication, toApplication);
-        return linkDataMap.computeIfAbsent(key, k -> new LinkData(fromApplication, toApplication, timeWindow));
-    }
-
-    // test api
-    public long getTotalCount() {
-        long totalCount = 0;
-        for (LinkData linkData : linkDataMap.values()) {
-            totalCount += linkData.getTotalCount();
+        LinkData findLink = linkDataMap.get(key);
+        if (findLink == null) {
+            findLink = new LinkData(fromApplication, toApplication);
+            linkDataMap.put(key, findLink);
         }
-        return totalCount;
+        return findLink;
     }
 
     public int size() {
@@ -88,16 +83,9 @@ public class LinkDataMap {
     }
 
     public LinkData getLinkData(LinkKey findLinkKey) {
-        Objects.requireNonNull(findLinkKey, "findLinkKey");
-
+        if (findLinkKey == null) {
+            throw new NullPointerException("findLinkKey must not be null");
+        }
         return this.linkDataMap.get(findLinkKey);
-    }
-
-    public TimeWindow getTimeWindow() {
-        return timeWindow;
-    }
-
-    public void setTimeWindow(TimeWindow timeWindow) {
-        this.timeWindow = timeWindow;
     }
 }

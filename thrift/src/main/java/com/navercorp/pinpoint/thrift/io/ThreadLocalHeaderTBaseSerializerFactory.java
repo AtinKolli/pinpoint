@@ -16,8 +16,6 @@
 
 package com.navercorp.pinpoint.thrift.io;
 
-import java.util.Objects;
-
 /**
  * @author emeroad
  * @author jaehong.kim
@@ -35,17 +33,14 @@ public class ThreadLocalHeaderTBaseSerializerFactory<E> implements SerializerFac
     private final SerializerFactory<E> factory;
 
     public ThreadLocalHeaderTBaseSerializerFactory(SerializerFactory<E> factory) {
-        this.factory = Objects.requireNonNull(factory, "factory");
+        if (factory == null) {
+            throw new NullPointerException("factory must not be null");
+        }
+        this.factory = factory;
     }
 
     @Override
     public E createSerializer() {
         return cache.get();
     }
-
-    @Override
-    public boolean isSupport(Object target) {
-        return factory.isSupport(target);
-    }
-
 }

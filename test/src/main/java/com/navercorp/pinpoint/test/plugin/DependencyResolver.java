@@ -1,11 +1,11 @@
-/*
+/**
  * Copyright 2014 NAVER Corp.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,12 +14,22 @@
  */
 package com.navercorp.pinpoint.test.plugin;
 
-import com.navercorp.pinpoint.test.plugin.shared.ArtifactIdUtils;
-import com.navercorp.pinpoint.test.plugin.util.TestLogger;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
-import org.eclipse.aether.DefaultRepositoryCache;
 import org.eclipse.aether.DefaultRepositorySystemSession;
-import org.eclipse.aether.RepositoryCache;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.artifact.Artifact;
@@ -30,8 +40,8 @@ import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.DependencyFilter;
 import org.eclipse.aether.impl.DefaultServiceLocator;
 import org.eclipse.aether.repository.LocalRepository;
-import org.eclipse.aether.repository.LocalRepositoryManager;
 import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.ArtifactResult;
 import org.eclipse.aether.resolution.DependencyRequest;
 import org.eclipse.aether.resolution.DependencyResolutionException;
@@ -42,178 +52,127 @@ import org.eclipse.aether.resolution.VersionRangeResult;
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.aether.spi.connector.transport.TransporterFactory;
 import org.eclipse.aether.transport.file.FileTransporterFactory;
+import org.eclipse.aether.transport.http.HttpTransporterFactory;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.filter.DependencyFilterUtils;
 import org.eclipse.aether.version.Version;
-import org.tinylog.TaggedLogger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.atomic.AtomicInteger;
+import com.navercorp.pinpoint.bootstrap.PinpointBootStrap;
+import com.navercorp.pinpoint.common.util.SimpleProperty;
+import com.navercorp.pinpoint.common.util.SystemProperty;
 
 /**
  * @author Jongho Moon
+ *
  */
 public class DependencyResolver {
     private static final String FOLLOW_PRECEEDING = "FOLLOW_PRECEEDING";
     private static final String DEFAULT_LOCAL_REPOSITORY = "target/local-repo";
+    private static final Logger logger = Logger.getLogger(PinpointBootStrap.class.getName());
 
-    private static final TaggedLogger logger = TestLogger.getLogger();
+    private static final SimpleProperty SYSTEM_PROPERTY = SystemProperty.INSTANCE;
 
     private final List<RemoteRepository> repositories;
     private final RepositorySystem system;
     private final RepositorySystemSession session;
 
-    static RepositorySystem newRepositorySystem(boolean supportRemote) {
+    
+    private static RepositorySystem newRepositorySystem() {
         DefaultServiceLocator locator = MavenRepositorySystemUtils.newServiceLocator();
         locator.addService(RepositoryConnectorFactory.class, BasicRepositoryConnectorFactory.class);
         locator.addService(TransporterFactory.class, FileTransporterFactory.class);
-        if (supportRemote) {
-            locator.addService(TransporterFactory.class, org.eclipse.aether.transport.http.HttpTransporterFactory.class);
-        }
+        locator.addService(TransporterFactory.class, HttpTransporterFactory.class);
 
         locator.setErrorHandler(new DefaultServiceLocator.ErrorHandler() {
             @Override
             public void serviceCreationFailed(Class<?> type, Class<?> impl, Throwable exception) {
-                logger.error(exception, "serviceCreationFailed type:{}, impl:{} {}", type, impl);
+                exception.printStackTrace();
             }
         });
 
         return locator.getService(RepositorySystem.class);
     }
 
-    private static class TraceRepositoryCache implements RepositoryCache {
-        private final RepositoryCache delegate = new DefaultRepositoryCache();
-        private final AtomicInteger hit = new AtomicInteger();
-        private final AtomicInteger miss = new AtomicInteger();
-
-        @Override
-        public void put(RepositorySystemSession session, Object key, Object data) {
-            if (logger.isInfoEnabled()) {
-                logger.info("cache-put:{} {} {}", session, key, data);
-            }
-            delegate.put(session, key, data);
-        }
-
-        @Override
-        public Object get(RepositorySystemSession session, Object key) {
-            final Object result = delegate.get(session, key);
-            if (result == null) {
-                int count = miss.incrementAndGet();
-                if (logger.isInfoEnabled()) {
-                    logger.info("cache-get-miss-{}:{} {}", count, session, key);
-                }
-            } else {
-                int count = hit.incrementAndGet();
-                if (logger.isInfoEnabled()) {
-                    logger.info("cache-get-hit-{}:{} {} result:{}", count, session, key, result);
-                }
-            }
-            return result;
-        }
-    }
-
-    static DefaultRepositorySystemSession newRepositorySystemSession(RepositorySystem system) {
+    private static DefaultRepositorySystemSession newRepositorySystemSession(RepositorySystem system) {
         DefaultRepositorySystemSession session = MavenRepositorySystemUtils.newSession();
-        session.setCache(newRepositoryCache());
+        
         String localRepositoryPath = resolveLocalRepository();
-        if (logger.isInfoEnabled()) {
-            logger.info("Local repository: {}", localRepositoryPath);
-        }
+        logger.info("Local repository: " + localRepositoryPath);
         LocalRepository localRepository = new LocalRepository(localRepositoryPath);
-
-        LocalRepositoryManager localRepositoryManager = system.newLocalRepositoryManager(session, localRepository);
-        session.setLocalRepositoryManager(localRepositoryManager);
+        
+        session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepository));
 
         return session;
     }
-
-    private static RepositoryCache newRepositoryCache() {
-        final String enableTraceCache = System.getProperty("pinpoint.ittest.tracecache", "false");
-        if (Boolean.parseBoolean(enableTraceCache)) {
-            return new TraceRepositoryCache();
-        }
-        return new DefaultRepositoryCache();
-    }
-
+    
     private static String resolveLocalRepository() {
-        String userHome = System.getProperty("user.home");
-
+        String userHome = SYSTEM_PROPERTY.getProperty("user.home");
+        
         if (userHome == null) {
-            logger.info("Cannot find user.home property. Use default local repository");
+            logger.fine("Cannot find user.home property. Use default local repository");
             return DEFAULT_LOCAL_REPOSITORY;
         }
-
+        
         File mavenHomeDir = new File(userHome, ".m2");
-
+        
         if (!mavenHomeDir.exists() || !mavenHomeDir.isDirectory()) {
-            logger.debug("Cannot find maven home directory {}. Use default local repository", mavenHomeDir);
+            logger.fine("Cannot find maven home directory " + mavenHomeDir + ". Use default local repository");
             return DEFAULT_LOCAL_REPOSITORY;
         }
-
+        
         File localRepository = new File(mavenHomeDir, "repository");
         File mavenConfigFile = new File(mavenHomeDir, "settings.xml");
-
+        
         if (mavenConfigFile.exists() && mavenConfigFile.isFile()) {
             try {
                 DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
                 Document document = builder.parse(mavenConfigFile);
                 NodeList nodeList = document.getElementsByTagName("localRepository");
-
+                
                 if (nodeList.getLength() != 0) {
                     Node node = nodeList.item(0);
                     localRepository = new File(node.getTextContent());
-
-                    logger.info("Use local repository {} configured at {}", localRepository, mavenConfigFile);
+                    
+                    logger.fine("Use local repository " + localRepository + " configured at " + mavenConfigFile);
                 }
             } catch (Exception e) {
-                logger.info(e, "Fail to read maven configuration file: {}. Use default local repository", mavenConfigFile);
+                logger.log(Level.INFO, "Fail to read maven configuration file: " + mavenConfigFile + ". Use defaul local repository", e);
             }
         }
-
+        
         if (localRepository.exists() && localRepository.isDirectory()) {
             return localRepository.getAbsolutePath();
         }
-
-        logger.info("Local repository {} is not exists. Use default local repository", localRepository);
-
+        
+        logger.fine("Local repository " + localRepository + " is not exists. Use default local repository");
+        
         return DEFAULT_LOCAL_REPOSITORY;
     }
+ 
 
-
-    static List<RemoteRepository> newRepositories(String... urls) {
-        List<RemoteRepository> repositories = new ArrayList<>(urls.length + 1);
-
-        RemoteRepository mavenCentralRepository = newMavenCentralRepository();
-        repositories.add(mavenCentralRepository);
-
-        int localRepositoriesCount = 0;
+    private static List<RemoteRepository> newRepositories(String...urls) {
+        List<RemoteRepository> repositories = new ArrayList<RemoteRepository>(urls.length + 1);
+        
+        repositories.add(new RemoteRepository.Builder("central", "default", "http://central.maven.org/maven2/").build());
+        
         for (String url : urls) {
-            RemoteRepository remoteRepository = new RemoteRepository.Builder("local" + localRepositoriesCount, "default", url).build();
-            repositories.add(remoteRepository);
+            repositories.add(new RemoteRepository.Builder(null, "default", url).build());
         }
-
+        
         return repositories;
     }
-
-    private static RemoteRepository newMavenCentralRepository() {
-        final String mavenCentral = MavenCentral.getAddress();
-        RemoteRepository.Builder builder = new RemoteRepository.Builder("central", "default", mavenCentral);
-        return builder.build();
+    
+    public static DependencyResolver get(String... repositoryUrls) {
+        RepositorySystem system = newRepositorySystem();
+        RepositorySystemSession session = newRepositorySystemSession(system);
+        List<RemoteRepository> repositories = newRepositories(repositoryUrls);
+        
+        return new DependencyResolver(system, session, repositories);
     }
-
+    
     public DependencyResolver(RepositorySystem system, RepositorySystemSession session, List<RemoteRepository> repositories) {
         this.system = system;
         this.session = session;
@@ -222,52 +181,38 @@ public class DependencyResolver {
 
     public List<Version> getVersions(Artifact artifact) throws VersionRangeResolutionException {
         VersionRangeRequest rangeRequest = new VersionRangeRequest();
-        rangeRequest.setArtifact(artifact);
-        rangeRequest.setRepositories(repositories);
+        rangeRequest.setArtifact( artifact );
+        rangeRequest.setRepositories( repositories );
 
-        VersionRangeResult rangeResult = system.resolveVersionRange(session, rangeRequest);
+        VersionRangeResult rangeResult = system.resolveVersionRange( session, rangeRequest );
 
-        List<Version> versions = new ArrayList<>(rangeResult.getVersions());
-        versions.sort(Comparator.naturalOrder());
-
+        List<Version> versions = new ArrayList<Version>(rangeResult.getVersions());
+        Collections.sort(versions);
+        
         return versions;
     }
-
-    public List<File> resolveArtifactsAndDependencies(String artifactsAsString) throws DependencyResolutionException {
-        List<Artifact> artifactList = getArtifactList(artifactsAsString);
-        return resolveArtifactsAndDependencies(artifactList);
-    }
-
-    private static List<Artifact> getArtifactList(String value) {
-        if (value == null) {
-            return Collections.emptyList();
-        }
-
-        String[] artifactNameArray = value.split(ArtifactIdUtils.ARTIFACT_SEPARATOR);
-        return ArtifactIdUtils.toArtifact(artifactNameArray);
-    }
-
-    public List<File> resolveArtifactsAndDependencies(List<Artifact> artifacts) throws DependencyResolutionException {
-        List<Dependency> dependencies = new ArrayList<>();
+    
+    public List<File> resolveArtifactsAndDependencies(List<Artifact> artifacts) throws ArtifactResolutionException, DependencyResolutionException {
+        List<Dependency> dependencies = new ArrayList<Dependency>();
 
         for (Artifact artifact : artifacts) {
             dependencies.add(new Dependency(artifact, JavaScopes.RUNTIME));
         }
-
-        CollectRequest collectRequest = new CollectRequest((Dependency) null, dependencies, repositories);
-        DependencyFilter classpathFilter = DependencyFilterUtils.classpathFilter(JavaScopes.RUNTIME);
-        DependencyRequest dependencyRequest = new DependencyRequest(collectRequest, classpathFilter);
+        
+        CollectRequest collectRequest = new CollectRequest((Dependency)null, dependencies, repositories);
+        DependencyFilter classpathFlter = DependencyFilterUtils.classpathFilter(JavaScopes.RUNTIME);
+        DependencyRequest dependencyRequest = new DependencyRequest(collectRequest, classpathFlter);
         DependencyResult result = system.resolveDependencies(session, dependencyRequest);
-
-        List<File> files = new ArrayList<>();
-
+        
+        List<File> files = new ArrayList<File>();
+        
         for (ArtifactResult artifactResult : result.getArtifactResults()) {
             files.add(artifactResult.getArtifact().getFile());
         }
-
+        
         return files;
     }
-
+    
     public String getNewestVersion(String groupId, String artifactId) throws VersionRangeResolutionException {
         Artifact artifact = new DefaultArtifact(groupId, artifactId, "jar", "[0,)");
 
@@ -275,115 +220,107 @@ public class DependencyResolver {
         rangeRequest.setArtifact(artifact);
         rangeRequest.setRepositories(repositories);
 
-        VersionRangeResult rangeResult = system.resolveVersionRange(session, rangeRequest);
+        VersionRangeResult rangeResult = system.resolveVersionRange( session, rangeRequest );
 
         Version newestVersion = rangeResult.getHighestVersion();
-
+        
         return newestVersion.toString();
     }
+    
+    public Map<String, List<Artifact>> resolveDependencySets(String... artifacts) {
+        List<List<Artifact>> companions = new ArrayList<List<Artifact>>();
+        List<Artifact> lastCompanion = null;
+        
+        for (String a : artifacts) {
+            int first = a.indexOf(':');
+            if (first == -1) {
+                throw new IllegalArgumentException("Bad artifact coordinates: " + a + ", artifacts: " + Arrays.deepToString(artifacts));
+            }
+            
+            int second = a.indexOf(':', first + 1);
+            if (second == -1) {
+                a += ":" + FOLLOW_PRECEEDING;
+            }
+            
+            DefaultArtifact artifact = new DefaultArtifact(a);
+            
+            if (FOLLOW_PRECEEDING.equals(artifact.getVersion())) {
+                if (lastCompanion != null) {
+                    lastCompanion.add(artifact);
+                } else {
+                    throw new IllegalArgumentException("Version is not specified: " + a + ", artifacts: " + Arrays.deepToString(artifacts));
+                }
+            } else {
+                lastCompanion = new ArrayList<Artifact>();
+                lastCompanion.add(artifact);
+                companions.add(lastCompanion);
+            }
+        }
 
-    public Map<String, List<Artifact>> resolveDependencySets(String... dependencies) {
-        List<List<Artifact>> companions = resolve(dependencies);
-
-        List<List<List<Artifact>>> xxx = new ArrayList<>();
-
+        List<List<List<Artifact>>> xxx = new ArrayList<List<List<Artifact>>>();
+        
         for (List<Artifact> companion : companions) {
-
+            
             Artifact representative = companion.get(0);
             List<Version> versions;
-
+            
             try {
                 versions = getVersions(representative);
             } catch (VersionRangeResolutionException e) {
                 throw new IllegalArgumentException("Fail to resolve version of: " + representative);
             }
-
-            if (versions.isEmpty()) {
-                throw new IllegalArgumentException("No version in the given range: " + representative);
-            }
-
-            List<List<Artifact>> companionVersions = new ArrayList<>(versions.size());
-
+            
+            List<List<Artifact>> companionVersions = new ArrayList<List<Artifact>>(versions.size());
+            
             for (Version version : versions) {
-                List<Artifact> companionVersion = new ArrayList<>(companion.size());
-
+                List<Artifact> companionVersion = new ArrayList<Artifact>(companion.size());
+                
                 for (Artifact artifact : companion) {
-                    Artifact verArtifact = new DefaultArtifact(artifact.getGroupId(), artifact.getArtifactId(), artifact.getClassifier(), artifact.getExtension(), version.toString());
-                    companionVersion.add(verArtifact);
+                    companionVersion.add(new DefaultArtifact(artifact.getGroupId(), artifact.getArtifactId(), "jar", version.toString()));
                 }
-
+                
                 companionVersions.add(companionVersion);
             }
-
+            
             xxx.add(companionVersions);
         }
-
+        
         Map<String, List<Artifact>> result = combination(xxx);
-
+        
         return result;
     }
-
-    private List<List<Artifact>> resolve(String[] dependencies) {
-        List<List<Artifact>> companions = new ArrayList<>();
-        List<Artifact> lastCompanion = null;
-
-        for (String dependency : dependencies) {
-            int first = dependency.indexOf(':');
-            if (first == -1) {
-                throw new IllegalArgumentException("Bad artifact coordinates: " + dependency + ", artifacts: " + Arrays.deepToString(dependencies));
-            }
-
-            int second = dependency.indexOf(':', first + 1);
-            if (second == -1) {
-                dependency += ":" + FOLLOW_PRECEEDING;
-            }
-
-            Artifact artifact = new DefaultArtifact(dependency);
-
-            if (FOLLOW_PRECEEDING.equals(artifact.getVersion())) {
-                if (lastCompanion != null) {
-                    lastCompanion.add(artifact);
-                } else {
-                    throw new IllegalArgumentException("Version is not specified: " + dependency + ", artifacts: " + Arrays.deepToString(dependencies));
-                }
-            } else {
-                lastCompanion = new ArrayList<>();
-                lastCompanion.add(artifact);
-                companions.add(lastCompanion);
-            }
-        }
-        return companions;
-    }
-
+    
     private Map<String, List<Artifact>> combination(List<List<List<Artifact>>> groups) {
         if (groups.size() == 1) {
-            Map<String, List<Artifact>> result = new LinkedHashMap<>();
+            Map<String, List<Artifact>> result = new HashMap<String, List<Artifact>>();
             List<List<Artifact>> group = groups.get(0);
-
+            
             if (group.size() == 1) {
-                result.put("", group.get(0));
+                result.put("", group.get(0)); 
             } else {
                 for (List<Artifact> aCase : group) {
                     Artifact representative = aCase.get(0);
                     result.put(representative.getArtifactId() + "-" + representative.getVersion(), aCase);
                 }
             }
-
+            
             return result;
         }
-
+        
         List<List<Artifact>> thisGroup = groups.get(0);
         Map<String, List<Artifact>> sub = combination(groups.subList(1, groups.size()));
-
-        Map<String, List<Artifact>> result = new LinkedHashMap<>();
-
+        
+        Map<String, List<Artifact>> result = new HashMap<String, List<Artifact>>();
+        
         if (thisGroup.size() == 1) {
             List<Artifact> thisArtifacts = thisGroup.get(0);
-
+            
             for (Entry<String, List<Artifact>> subEntry : sub.entrySet()) {
                 List<Artifact> subArtifacts = subEntry.getValue();
-                List<Artifact> t = union(thisArtifacts, subArtifacts);
-
+                List<Artifact> t = new ArrayList<Artifact>(thisArtifacts.size() + subArtifacts.size());
+                t.addAll(thisArtifacts);
+                t.addAll(subArtifacts);
+                
                 result.put(subEntry.getKey(), t);
             }
         } else {
@@ -393,24 +330,36 @@ public class DependencyResolver {
 
                 for (Entry<String, List<Artifact>> subEntry : sub.entrySet()) {
                     List<Artifact> subArtifacts = subEntry.getValue();
-                    List<Artifact> t = union(thisArtifacts, subArtifacts);
-
+                    List<Artifact> t = new ArrayList<Artifact>(thisArtifacts.size() + subArtifacts.size());
+                    t.addAll(thisArtifacts);
+                    t.addAll(subArtifacts);
+                    
                     String subKey = subEntry.getKey();
-                    String key = subKey.isEmpty() ? thisKey : thisKey + ", " + subKey;
+                    String key = subKey.isEmpty() ? thisKey : thisKey + ", " + subKey; 
                     result.put(key, t);
                 }
             }
-
+            
         }
-
+        
+        
         return result;
     }
-
-    private static List<Artifact> union(List<Artifact> list1, List<Artifact> list2) {
-        List<Artifact> lists = new ArrayList<>(list1.size() + list2.size());
-        lists.addAll(list1);
-        lists.addAll(list2);
-        return lists;
+    
+    public static void main(String args[]) throws Exception {
+        DependencyResolver resolver = DependencyResolver.get("http://maven.cubrid.org");
+        Map<String, List<Artifact>> sets = resolver.resolveDependencySets("org.eclipse.aether:aether-util:[0,)", "org.eclipse.aether:aether-spi", "cubrid:cubrid-jdbc:[8.0,)");
+        
+        int i = 0;
+        for (Entry<String, List<Artifact>> set : sets.entrySet()) {
+            System.out.println(i++);
+            List<File> results = resolver.resolveArtifactsAndDependencies(set.getValue());
+            
+            System.out.println(set.getKey() + ":");
+        
+            for (File result : results) {
+                System.out.println(result);
+            }
+        }
     }
-
 }

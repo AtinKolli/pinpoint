@@ -20,7 +20,6 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Properties;
 
 import org.apache.ibatis.cache.CacheKey;
@@ -39,6 +38,7 @@ import org.apache.ibatis.plugin.Signature;
 import org.apache.ibatis.scripting.defaults.DefaultParameterHandler;
 import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
+import org.springframework.util.Assert;
 
 /**
  * Plugin for printing out the bind variables of {@link java.sql.PreparedStatement} and {@link java.sql.CallableStatement} with Query string.
@@ -65,7 +65,8 @@ public class BindingLogPlugin32 implements Interceptor {
     }
 
     public BindingLogPlugin32(BindLogFormatter bindLogFormatter) {
-        this.bindLogFormatter = Objects.requireNonNull(bindLogFormatter, "bindLogFormatter");
+        Assert.notNull(bindLogFormatter, "bindLogFormatter must no be null");
+        this.bindLogFormatter = bindLogFormatter;
     }
 
 
@@ -139,6 +140,7 @@ public class BindingLogPlugin32 implements Interceptor {
     }
 
     public void setBindLogFormatter(BindLogFormatter bindLogFormatter) {
-        this.bindLogFormatter = Objects.requireNonNull(bindLogFormatter, "bindLogFormatter");
+        Assert.notNull(bindLogFormatter, "bindLogFormatter must no be null");
+        this.bindLogFormatter = bindLogFormatter;
     }
 }

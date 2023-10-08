@@ -19,9 +19,8 @@ package com.navercorp.pinpoint.web.vo;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
-import com.navercorp.pinpoint.common.server.bo.SpanBo;
+import com.navercorp.pinpoint.common.bo.SpanBo;
 
 /**
  * @author netspider
@@ -29,19 +28,19 @@ import com.navercorp.pinpoint.common.server.bo.SpanBo;
  */
 public class BusinessTransactions {
 
-    private final Map<String, BusinessTransaction> transactions = new HashMap<>();
+    private final Map<String, BusinessTransaction> transactions = new HashMap<String, BusinessTransaction>();
 
     private int totalCallCount;
 
     public void add(SpanBo span) {
-        Objects.requireNonNull(span, "span");
-
+        if (span == null) {
+            throw new NullPointerException("span must not be null");
+        }
         totalCallCount++;
 
         String rpc = span.getRpc();
-        final BusinessTransaction businessTransaction = transactions.get(rpc);
-        if (businessTransaction != null) {
-            businessTransaction.add(span);
+        if (transactions.containsKey(rpc)) {
+            transactions.get(rpc).add(span);
         } else {
             transactions.put(rpc, new BusinessTransaction(span));
         }

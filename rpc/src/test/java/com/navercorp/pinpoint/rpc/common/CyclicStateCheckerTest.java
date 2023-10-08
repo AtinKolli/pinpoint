@@ -16,8 +16,10 @@
 
 package com.navercorp.pinpoint.rpc.common;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+import org.junit.Test;
+
+import com.navercorp.pinpoint.rpc.common.CyclicStateCheckerTest;
 
 /**
  * @author Taejin Koo
@@ -29,16 +31,16 @@ public class CyclicStateCheckerTest {
         CyclicStateChecker stateChecker = new CyclicStateChecker(3);
 
         stateChecker.markAndCheckCondition();
-        Assertions.assertFalse(stateChecker.checkCondition());
+        Assert.assertFalse(stateChecker.checkCondition());
 
         stateChecker.markAndCheckCondition();
-        Assertions.assertFalse(stateChecker.checkCondition());
+        Assert.assertFalse(stateChecker.checkCondition());
 
         stateChecker.markAndCheckCondition();
-        Assertions.assertTrue(stateChecker.checkCondition());
+        Assert.assertTrue(stateChecker.checkCondition());
 
         stateChecker.markAndCheckCondition();
-        Assertions.assertTrue(stateChecker.checkCondition());
+        Assert.assertTrue(stateChecker.checkCondition());
     }
 
     @Test
@@ -46,22 +48,22 @@ public class CyclicStateCheckerTest {
         CyclicStateChecker stateChecker = new CyclicStateChecker(3);
 
         stateChecker.markAndCheckCondition();
-        Assertions.assertFalse(stateChecker.checkCondition());
+        Assert.assertFalse(stateChecker.checkCondition());
 
         stateChecker.markAndCheckCondition();
-        Assertions.assertFalse(stateChecker.checkCondition());
+        Assert.assertFalse(stateChecker.checkCondition());
 
         stateChecker.unmark();
-        Assertions.assertFalse(stateChecker.checkCondition());
+        Assert.assertFalse(stateChecker.checkCondition());
 
         stateChecker.markAndCheckCondition();
-        Assertions.assertFalse(stateChecker.checkCondition());
+        Assert.assertFalse(stateChecker.checkCondition());
 
         stateChecker.markAndCheckCondition();
-        Assertions.assertFalse(stateChecker.checkCondition());
+        Assert.assertFalse(stateChecker.checkCondition());
 
         stateChecker.markAndCheckCondition();
-        Assertions.assertTrue(stateChecker.checkCondition());
+        Assert.assertTrue(stateChecker.checkCondition());
     }
 
 }

@@ -16,47 +16,50 @@
 
 package com.navercorp.pinpoint.collector.cluster.route;
 
-import com.navercorp.pinpoint.collector.cluster.ClusterPoint;
-import com.navercorp.pinpoint.collector.cluster.ClusterPointLocator;
-import com.navercorp.pinpoint.common.server.cluster.ClusterKey;
-import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
-import com.navercorp.pinpoint.thrift.dto.command.TCommandTransferResponse;
-import com.navercorp.pinpoint.thrift.dto.command.TRouteResult;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.navercorp.pinpoint.collector.cluster.ClusterPointLocator;
+import com.navercorp.pinpoint.collector.cluster.TargetClusterPoint;
+import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
 
 /**
  * @author koo.taejin
  */
 public abstract class AbstractRouteHandler<T extends RouteEvent> implements RouteHandler<T> {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final ClusterPointLocator<ClusterPoint<?>> targetClusterPointLocator;
+    private final ClusterPointLocator<TargetClusterPoint> targetClusterPointLocator;
 
-    public AbstractRouteHandler(ClusterPointLocator<ClusterPoint<?>> targetClusterPointLocator) {
+    public AbstractRouteHandler(ClusterPointLocator<TargetClusterPoint> targetClusterPointLocator) {
         this.targetClusterPointLocator = targetClusterPointLocator;
     }
 
-    protected ClusterPoint<?> findClusterPoint(TCommandTransfer deliveryCommand) {
+    protected TargetClusterPoint findClusterPoint(TCommandTransfer deliveryCommand) {
         String applicationName = deliveryCommand.getApplicationName();
         String agentId = deliveryCommand.getAgentId();
         long startTimeStamp = deliveryCommand.getStartTime();
-        final ClusterKey sourceKey = new ClusterKey(applicationName, agentId, startTimeStamp);
-        return findClusterPoint(sourceKey);
-    }
 
-    public ClusterPoint<?> findClusterPoint(ClusterKey sourceKey) {
-        List<ClusterPoint<?>> result = new ArrayList<>();
+        List<TargetClusterPoint> result = new ArrayList<TargetClusterPoint>();
 
-        for (ClusterPoint<?> targetClusterPoint : targetClusterPointLocator.getClusterPointList()) {
-            ClusterKey destAgentInfo = targetClusterPoint.getDestClusterKey();
-            if (destAgentInfo.equals(sourceKey)) {
-                result.add(targetClusterPoint);
+        for (TargetClusterPoint targetClusterPoint : targetClusterPointLocator.getClusterPointList()) {
+            if (!targetClusterPoint.getApplicationName().equals(applicationName)) {
+                continue;
             }
+
+            if (!targetClusterPoint.getAgentId().equals(agentId)) {
+                continue;
+            }
+
+            if (!(targetClusterPoint.getStartTimeStamp() == startTimeStamp)) {
+                continue;
+            }
+
+            result.add(targetClusterPoint);
         }
 
         if (result.size() == 1) {
@@ -64,29 +67,11 @@ public abstract class AbstractRouteHandler<T extends RouteEvent> implements Rout
         }
 
         if (result.size() > 1) {
-            logger.warn("Ambiguous ClusterPoint {} (Valid Agent list={}).", sourceKey, result);
+            logger.warn("Ambiguous ClusterPoint {}, {}, {} (Valid Agent list={}).", applicationName, agentId, startTimeStamp, result);
             return null;
         }
 
         return null;
-    }
-
-    protected TCommandTransferResponse createResponse(TRouteResult result) {
-        return createResponse(result, new byte[0]);
-    }
-
-    protected TCommandTransferResponse createResponse(TRouteResult result, byte[] payload) {
-        TCommandTransferResponse response = new TCommandTransferResponse();
-        response.setRouteResult(result);
-        response.setPayload(payload);
-        return response;
-    }
-
-    protected TCommandTransferResponse createResponse(TRouteResult result, String message) {
-        TCommandTransferResponse response = new TCommandTransferResponse();
-        response.setRouteResult(result);
-        response.setMessage(message);
-        return response;
     }
 
 }

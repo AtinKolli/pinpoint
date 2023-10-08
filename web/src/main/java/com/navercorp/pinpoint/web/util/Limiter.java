@@ -16,15 +16,13 @@
 
 package com.navercorp.pinpoint.web.util;
 
-import com.navercorp.pinpoint.common.server.util.time.Range;
-
-import java.time.Instant;
+import com.navercorp.pinpoint.web.vo.Range;
 
 /**
  * @author emeroad
  */
 public interface Limiter {
-    void limit(Instant from, Instant to);
+    void limit(long from, long to);
 
     void limit(Range range);
 }

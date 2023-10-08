@@ -16,79 +16,80 @@
 
 package com.navercorp.pinpoint.rpc.client;
 
-import com.navercorp.pinpoint.io.ResponseMessage;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.navercorp.pinpoint.rpc.DefaultFuture;
+import com.navercorp.pinpoint.rpc.Future;
+import com.navercorp.pinpoint.rpc.client.RequestManager;
+import com.navercorp.pinpoint.rpc.packet.RequestPacket;
+
 import org.jboss.netty.util.HashedWheelTimer;
-import org.jboss.netty.util.Timer;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * @author emeroad
  */
 public class RequestManagerTest {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private Timer timer;
-    private RequestManager requestManager;
-
-    @BeforeEach
-    public void setUp() throws Exception {
-        this.timer = new HashedWheelTimer(10, TimeUnit.MICROSECONDS);
-        this.requestManager = new RequestManager(timer, 3000);
-    }
-
-    @AfterEach
-    public void tearDown() throws Exception {
-        if (this.timer != null) {
-            this.timer.stop();
-        }
-        if (this.requestManager != null) {
-            this.requestManager.close();
-        }
-    }
 
     @Test
     public void testRegisterRequest() throws Exception {
-        final int requestId = requestManager.nextRequestId();
-        final CompletableFuture<ResponseMessage> future = requestManager.register(requestId, 50);
-
+        HashedWheelTimer timer = getTimer();
+        RequestManager requestManager = new RequestManager(timer, 3000);
         try {
-            future.get(3000, TimeUnit.MILLISECONDS);
-            Assertions.fail();
-        } catch (InterruptedException e) {
-            Assertions.fail();
-        } catch (TimeoutException | ExecutionException ex) {
-            Throwable th = ex;
-            if (ex instanceof ExecutionException) {
-                th = ex.getCause();
-            }
-            assertThat(th.getMessage()).contains("Timeout");
+            RequestPacket packet = new RequestPacket(new byte[0]);
+            Future future = requestManager.register(packet, 50);
+            Thread.sleep(200);
+
+            Assert.assertTrue(future.isReady());
+            Assert.assertFalse(future.isSuccess());
+            Assert.assertTrue(future.getCause().getMessage().contains("timeout"));
+            logger.debug(future.getCause().getMessage());
+        } finally {
+            requestManager.close();
+            timer.stop();
         }
     }
 
-
     @Test
     public void testRemoveMessageFuture() throws Exception {
-        int requestId = requestManager.nextRequestId();
+        HashedWheelTimer timer = getTimer();
+        RequestManager requestManager = new RequestManager(timer, 3000);
+        try {
+            RequestPacket packet = new RequestPacket(1, new byte[0]);
+            DefaultFuture future = requestManager.register(packet, 2000);
 
-        CompletableFuture<ResponseMessage> future = requestManager.register(requestId, 2000);
-        future.completeExceptionally(new RuntimeException());
+            future.setFailure(new RuntimeException());
 
-        CompletableFuture<ResponseMessage> nullFuture = requestManager.removeMessageFuture(requestId);
-        assertNull(nullFuture);
+            Future nullFuture = requestManager.removeMessageFuture(packet.getRequestId());
+            Assert.assertNull(nullFuture);
+
+
+        } finally {
+            requestManager.close();
+            timer.stop();
+        }
+
     }
 
+    private HashedWheelTimer getTimer() {
+        return new HashedWheelTimer(10, TimeUnit.MICROSECONDS);
+    }
+
+    //    @Test
+    public void testTimerStartTiming() throws InterruptedException {
+        HashedWheelTimer timer = new HashedWheelTimer(1000, TimeUnit.MILLISECONDS);
+        timer.start();
+        timer.stop();
+    }
+
+    @Test
+    public void testClose() throws Exception {
+
+    }
 }

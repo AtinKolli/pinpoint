@@ -16,9 +16,6 @@
 
 package com.navercorp.pinpoint.collector.cluster.route;
 
-import com.navercorp.pinpoint.collector.cluster.route.filter.RouteFilter;
-import com.navercorp.pinpoint.thrift.dto.command.TCommandTransferResponse;
-
 
 /**
  * @author koo.taejin
@@ -29,6 +26,6 @@ public interface RouteHandler<T extends RouteEvent> {
 
     void addResponseFilter(RouteFilter<ResponseEvent> filter);
 
-    TCommandTransferResponse onRoute(T event);
+    RouteResult onRoute(T event);
 
 }

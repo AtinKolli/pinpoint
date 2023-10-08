@@ -16,29 +16,45 @@
 
 package com.navercorp.pinpoint.web.service;
 
-import com.navercorp.pinpoint.web.calltree.span.CallTreeIterator;
-import com.navercorp.pinpoint.web.calltree.span.TraceState;
+import com.navercorp.pinpoint.web.calltree.span.SpanAlign;
+import com.navercorp.pinpoint.web.calltree.span.SpanAligner2;
 
-import java.util.Objects;
+import java.util.List;
 
 /**
  * @author emeroad
- * @author jaehong.kim
  */
 public class SpanResult {
-    private final TraceState.State traceState;
-    private final CallTreeIterator callTreeIterator;
+    private int completeType;
+    private List<SpanAlign> spanAlignList;
 
-    public SpanResult(TraceState.State traceState, CallTreeIterator callTreeIterator) {
-        this.traceState = Objects.requireNonNull(traceState, "traceState");
-        this.callTreeIterator = Objects.requireNonNull(callTreeIterator, "callTreeIterator");
+    public SpanResult(int completeType, List<SpanAlign> spanAlignList) {
+        if (spanAlignList == null) {
+            throw new NullPointerException("spanAlignList must not be null");
+        }
+        this.completeType = completeType;
+        this.spanAlignList = spanAlignList;
     }
 
-    public TraceState.State getTraceState() {
-        return traceState;
+
+
+    public int getCompleteType() {
+        return completeType;
     }
 
-    public CallTreeIterator getCallTree() {
-        return callTreeIterator;
+    public List<SpanAlign> getSpanAlignList() {
+        return spanAlignList;
+    }
+
+    public String getCompleteTypeString() {
+        switch (completeType) {
+            case SpanAligner2.BEST_MATCH:
+                return "Complete";
+            case SpanAligner2.START_TIME_MATCH:
+                return "Progress";
+            case SpanAligner2.FAIL_MATCH:
+                return "Error";
+        }
+        return "Error";
     }
 }

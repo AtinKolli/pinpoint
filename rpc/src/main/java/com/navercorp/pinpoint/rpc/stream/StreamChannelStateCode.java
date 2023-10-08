@@ -16,8 +16,6 @@
 
 package com.navercorp.pinpoint.rpc.stream;
 
-import com.navercorp.pinpoint.common.util.ArrayUtils;
-
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -29,31 +27,28 @@ public enum StreamChannelStateCode {
 
     NEW,
     OPEN(NEW),
-    CONNECT_AWAIT(OPEN),
-    CONNECT_ARRIVED(OPEN),
-    CONNECTED(CONNECT_AWAIT, CONNECT_ARRIVED),
-    CLOSED(CONNECT_AWAIT, CONNECT_ARRIVED, CONNECTED),
-    ILLEGAL_STATE(NEW, OPEN, CONNECT_AWAIT, CONNECT_ARRIVED, CONNECTED, CLOSED);
+    OPEN_AWAIT(OPEN),
+    OPEN_ARRIVED(OPEN),
+    RUN(OPEN_AWAIT, OPEN_ARRIVED),
+    CLOSED(OPEN_AWAIT, OPEN_ARRIVED, RUN),
+    ILLEGAL_STATE(NEW, OPEN, OPEN_AWAIT, OPEN_ARRIVED, RUN, CLOSED);
 
     private final Set<StreamChannelStateCode> validBeforeStateSet;
 
-    StreamChannelStateCode(StreamChannelStateCode... validBeforeStates) {
-        validBeforeStateSet = asSet(validBeforeStates);
-    }
+    private StreamChannelStateCode(StreamChannelStateCode... validBeforeStates) {
+        this.validBeforeStateSet = new HashSet<StreamChannelStateCode>();
 
-    private Set<StreamChannelStateCode> asSet(StreamChannelStateCode[] validBeforeStates) {
-        if (ArrayUtils.isEmpty(validBeforeStates)) {
-            return Collections.emptySet();
-        } else {
-            // Don't use EnumSet, Not initialized StreamStateCode,
-            Set<StreamChannelStateCode> temp = new HashSet<>();
-            Collections.addAll(temp, validBeforeStates);
-            return temp;
+        if (validBeforeStates != null) {
+            Collections.addAll(validBeforeStateSet, validBeforeStates);
         }
     }
 
     public boolean canChangeState(StreamChannelStateCode currentState) {
-        return validBeforeStateSet.contains(currentState);
+        if (validBeforeStateSet.contains(currentState)) {
+            return true;
+        }
+
+        return false;
     }
 
 }

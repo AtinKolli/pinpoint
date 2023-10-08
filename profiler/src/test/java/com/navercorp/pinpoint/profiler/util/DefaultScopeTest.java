@@ -16,215 +16,211 @@
 
 package com.navercorp.pinpoint.profiler.util;
 
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.ExecutionPolicy;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.InterceptorScopeInvocation;
-import com.navercorp.pinpoint.profiler.interceptor.scope.DefaultInterceptorScopeInvocation;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import static org.junit.Assert.*;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.Test;
+
+import com.navercorp.pinpoint.bootstrap.instrument.Scope;
+import com.navercorp.pinpoint.bootstrap.interceptor.group.ExecutionPoint;
+import com.navercorp.pinpoint.profiler.plugin.DefaultScope;
+
 
 public class DefaultScopeTest {
     @Test
     public void test0() {
-        InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
-
-        assertFalse(transaction.isActive());
-
-        assertFalse(transaction.tryEnter(ExecutionPolicy.INTERNAL));
-        assertFalse(transaction.isActive());
-
-        assertTrue(transaction.tryEnter(ExecutionPolicy.BOUNDARY));
-        assertTrue(transaction.isActive());
-
-        assertTrue(transaction.tryEnter(ExecutionPolicy.INTERNAL));
-        assertTrue(transaction.isActive());
-
-        assertFalse(transaction.tryEnter(ExecutionPolicy.BOUNDARY));
-        assertTrue(transaction.isActive());
-
-        assertFalse(transaction.canLeave(ExecutionPolicy.BOUNDARY));
-        assertTrue(transaction.isActive());
-
-        assertTrue(transaction.canLeave(ExecutionPolicy.INTERNAL));
-        transaction.leave(ExecutionPolicy.INTERNAL);
-        assertTrue(transaction.isActive());
-
-        assertTrue(transaction.canLeave(ExecutionPolicy.BOUNDARY));
-        assertTrue(transaction.isActive());
-        transaction.leave(ExecutionPolicy.BOUNDARY);
-        assertFalse(transaction.isActive());
-
-        assertFalse(transaction.canLeave(ExecutionPolicy.INTERNAL));
-        assertFalse(transaction.isActive());
+        Scope scope = new DefaultScope("test");
+        
+        assertFalse(scope.isIn());
+        
+        assertFalse(scope.tryEnter(ExecutionPoint.INTERNAL));
+        assertFalse(scope.isIn());
+        
+        assertTrue(scope.tryEnter(ExecutionPoint.BOUNDARY));
+        assertTrue(scope.isIn());
+        scope.entered(ExecutionPoint.BOUNDARY);
+        assertTrue(scope.isIn());
+        
+        assertTrue(scope.tryEnter(ExecutionPoint.INTERNAL));
+        assertTrue(scope.isIn());
+        scope.entered(ExecutionPoint.INTERNAL);
+        assertTrue(scope.isIn());
+        
+        assertFalse(scope.tryEnter(ExecutionPoint.BOUNDARY));
+        assertTrue(scope.isIn());
+        
+        assertFalse(scope.tryLeave(ExecutionPoint.BOUNDARY));
+        assertTrue(scope.isIn());
+        
+        assertTrue(scope.tryLeave(ExecutionPoint.INTERNAL));
+        scope.leaved(ExecutionPoint.INTERNAL);
+        assertTrue(scope.isIn());
+        
+        assertTrue(scope.tryLeave(ExecutionPoint.BOUNDARY));
+        assertTrue(scope.isIn());
+        scope.leaved(ExecutionPoint.BOUNDARY);
+        assertFalse(scope.isIn());
+        
+        assertFalse(scope.tryLeave(ExecutionPoint.INTERNAL));
+        assertFalse(scope.isIn());
     }
-
+    
     @Test
     public void test1() {
-        InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
-
-        assertFalse(transaction.isActive());
-
-        assertTrue(transaction.tryEnter(ExecutionPolicy.ALWAYS));
-        assertTrue(transaction.isActive());
-
-        assertTrue(transaction.tryEnter(ExecutionPolicy.ALWAYS));
-        assertTrue(transaction.isActive());
-
-        assertTrue(transaction.canLeave(ExecutionPolicy.ALWAYS));
-        assertTrue(transaction.isActive());
-        transaction.leave(ExecutionPolicy.ALWAYS);
-        assertTrue(transaction.isActive());
-
-        assertTrue(transaction.canLeave(ExecutionPolicy.ALWAYS));
-        assertTrue(transaction.isActive());
-        transaction.leave(ExecutionPolicy.ALWAYS);
-        assertFalse(transaction.isActive());
+        Scope scope = new DefaultScope("test");
+        
+        assertFalse(scope.isIn());
+        
+        assertTrue(scope.tryEnter(ExecutionPoint.ALWAYS));
+        assertTrue(scope.isIn());
+        scope.entered(ExecutionPoint.ALWAYS);
+        assertTrue(scope.isIn());
+        
+        assertTrue(scope.tryEnter(ExecutionPoint.ALWAYS));
+        assertTrue(scope.isIn());
+        scope.entered(ExecutionPoint.ALWAYS);
+        assertTrue(scope.isIn());
+        
+        assertTrue(scope.tryLeave(ExecutionPoint.ALWAYS));
+        assertTrue(scope.isIn());
+        scope.leaved(ExecutionPoint.ALWAYS);
+        assertTrue(scope.isIn());
+        
+        assertTrue(scope.tryLeave(ExecutionPoint.ALWAYS));
+        assertTrue(scope.isIn());
+        scope.leaved(ExecutionPoint.ALWAYS);
+        assertFalse(scope.isIn());
     }
 
     @Test
     public void testAttachment() {
         String attachment = "context";
-        InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
+        Scope scope = new DefaultScope("test");
+        
+        scope.tryEnter(ExecutionPoint.ALWAYS);
+        scope.entered(ExecutionPoint.ALWAYS);
+        assertNull(scope.getAttachment());
+        
+        scope.setAttachment(attachment);
+        assertSame(scope.getAttachment(), attachment);
 
-        transaction.tryEnter(ExecutionPolicy.ALWAYS);
-        assertNull(transaction.getAttachment());
+        scope.tryEnter(ExecutionPoint.ALWAYS);
+        scope.entered(ExecutionPoint.ALWAYS);
+        assertSame(scope.getAttachment(), attachment);
 
-        transaction.setAttachment(attachment);
-        assertSame(transaction.getAttachment(), attachment);
-
-        transaction.tryEnter(ExecutionPolicy.ALWAYS);
-        assertSame(transaction.getAttachment(), attachment);
-
-        transaction.canLeave(ExecutionPolicy.ALWAYS);
-        transaction.leave(ExecutionPolicy.ALWAYS);
-        assertSame(transaction.getAttachment(), attachment);
-
-        transaction.canLeave(ExecutionPolicy.ALWAYS);
-        transaction.leave(ExecutionPolicy.ALWAYS);
+        scope.tryLeave(ExecutionPoint.ALWAYS);
+        scope.leaved(ExecutionPoint.ALWAYS);
+        assertSame(scope.getAttachment(), attachment);
+        
+        scope.tryLeave(ExecutionPoint.ALWAYS);
+        scope.leaved(ExecutionPoint.ALWAYS);
     }
 
     @Test
     public void testAttachment2() {
         String attachment = "context";
-        InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
+        Scope scope = new DefaultScope("test");
 
-        transaction.tryEnter(ExecutionPolicy.ALWAYS);
-        assertNull(transaction.getAttachment());
-        transaction.setAttachment(attachment);
-        transaction.canLeave(ExecutionPolicy.ALWAYS);
-        transaction.leave(ExecutionPolicy.ALWAYS);
+        scope.tryEnter(ExecutionPoint.ALWAYS);
+        scope.entered(ExecutionPoint.ALWAYS);
+        assertNull(scope.getAttachment());
+        scope.setAttachment(attachment);
+        scope.tryLeave(ExecutionPoint.ALWAYS);
+        scope.leaved(ExecutionPoint.ALWAYS);
 
-        transaction.tryEnter(ExecutionPolicy.ALWAYS);
-        assertNull(transaction.getAttachment());
-        transaction.canLeave(ExecutionPolicy.ALWAYS);
-        transaction.leave(ExecutionPolicy.ALWAYS);
+        scope.tryEnter(ExecutionPoint.ALWAYS);
+        scope.entered(ExecutionPoint.ALWAYS);
+        assertNull(scope.getAttachment());
+        scope.tryLeave(ExecutionPoint.ALWAYS);
+        scope.leaved(ExecutionPoint.ALWAYS);
     }
-
+    
     @Test
     public void testAttachment3() {
         String oldAttachment = "context";
         String newAttachment = "newnew";
-        InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
+        Scope scope = new DefaultScope("test");
 
-        transaction.tryEnter(ExecutionPolicy.ALWAYS);
-        transaction.setAttachment(oldAttachment);
-        assertSame(oldAttachment, transaction.getAttachment());
-        assertSame(oldAttachment, transaction.setAttachment(newAttachment));
-        assertSame(newAttachment, transaction.getAttachment());
-        assertSame(newAttachment, transaction.removeAttachment());
-        assertNull(transaction.getAttachment());
-        transaction.canLeave(ExecutionPolicy.ALWAYS);
-        transaction.leave(ExecutionPolicy.ALWAYS);
+        scope.tryEnter(ExecutionPoint.ALWAYS);
+        scope.entered(ExecutionPoint.ALWAYS);
+        scope.setAttachment(oldAttachment);
+        assertSame(oldAttachment, scope.getAttachment());
+        assertSame(oldAttachment, scope.setAttachment(newAttachment));
+        assertSame(newAttachment, scope.getAttachment());
+        assertSame(newAttachment, scope.removeAttachment());
+        assertNull(scope.getAttachment());
+        scope.tryLeave(ExecutionPoint.ALWAYS);
+        scope.leaved(ExecutionPoint.ALWAYS);
     }
-
-    @Test
+    
+    @Test(expected=IllegalStateException.class)
     public void testSetAttachmentFail() {
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
-            transaction.setAttachment("attachment");
-        });
+        Scope scope = new DefaultScope("test");
+        scope.setAttachment("attachment");
     }
-
-    @Test
+    
+    @Test(expected=IllegalStateException.class)
     public void testSetAttachmentFail2() {
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
+        Scope scope = new DefaultScope("test");
 
-            transaction.tryEnter(ExecutionPolicy.ALWAYS);
-            transaction.canLeave(ExecutionPolicy.ALWAYS);
-            transaction.leave(ExecutionPolicy.ALWAYS);
+        scope.tryEnter(ExecutionPoint.ALWAYS);
+        scope.entered(ExecutionPoint.ALWAYS);
+        scope.tryLeave(ExecutionPoint.ALWAYS);
+        scope.leaved(ExecutionPoint.ALWAYS);
 
-            transaction.setAttachment("attachment");
-        });
+        scope.setAttachment("attachment");
     }
-
-    @Test
+    
+    @Test(expected=IllegalStateException.class)
     public void testGetAttachmentFail() {
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
-            transaction.getAttachment();
-        });
+        Scope scope = new DefaultScope("test");
+        scope.getAttachment();
     }
-
-    @Test
+    
+    @Test(expected=IllegalStateException.class)
     public void testGetAttachmentFail2() {
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
+        Scope scope = new DefaultScope("test");
 
-            transaction.tryEnter(ExecutionPolicy.ALWAYS);
-            transaction.canLeave(ExecutionPolicy.ALWAYS);
-            transaction.leave(ExecutionPolicy.ALWAYS);
+        scope.tryEnter(ExecutionPoint.ALWAYS);
+        scope.entered(ExecutionPoint.ALWAYS);
+        scope.tryLeave(ExecutionPoint.ALWAYS);
+        scope.leaved(ExecutionPoint.ALWAYS);
 
-            transaction.getAttachment();
-        });
+        scope.getAttachment();
     }
-
-    @Test
+    
+    @Test(expected=IllegalStateException.class)
     public void testRemoveAttachmentFail() {
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
-            transaction.removeAttachment();
-        });
+        Scope scope = new DefaultScope("test");
+        scope.removeAttachment();
     }
-
-    @Test
+    
+    @Test(expected=IllegalStateException.class)
     public void testRemoveAttachmentFail2() {
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
+        Scope scope = new DefaultScope("test");
 
-            transaction.tryEnter(ExecutionPolicy.ALWAYS);
-            transaction.canLeave(ExecutionPolicy.ALWAYS);
-            transaction.leave(ExecutionPolicy.ALWAYS);
+        scope.tryEnter(ExecutionPoint.ALWAYS);
+        scope.entered(ExecutionPoint.ALWAYS);
+        scope.tryLeave(ExecutionPoint.ALWAYS);
+        scope.leaved(ExecutionPoint.ALWAYS);
 
-            transaction.removeAttachment();
-        });
+        scope.removeAttachment();
     }
-
-    @Test
+    
+    @Test(expected=IllegalStateException.class)
     public void testAfterWithoutBefore() {
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
-            transaction.leave(ExecutionPolicy.ALWAYS);
-        });
+        Scope scope = new DefaultScope("test");
+        scope.leaved(ExecutionPoint.ALWAYS);
     }
-
-    @Test
+    
+    @Test(expected=IllegalStateException.class)
     public void testAfterWithoutBefore2() {
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
-            transaction.leave(ExecutionPolicy.BOUNDARY);
-        });
+        Scope scope = new DefaultScope("test");
+        scope.leaved(ExecutionPoint.BOUNDARY);
     }
-
-    @Test
+    
+    @Test(expected=IllegalStateException.class)
     public void testAfterWithoutBefore3() {
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            InterceptorScopeInvocation transaction = new DefaultInterceptorScopeInvocation("test");
-            transaction.leave(ExecutionPolicy.INTERNAL);
-        });
+        Scope scope = new DefaultScope("test");
+        scope.leaved(ExecutionPoint.INTERNAL);
     }
 }

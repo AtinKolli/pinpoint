@@ -16,14 +16,10 @@
 
 package com.navercorp.pinpoint.collector.dao.hbase.statistics;
 
-import org.apache.hadoop.hbase.TableName;
-
 /**
  * @author emeroad
  */
 public interface RowInfo {
-
-    TableName getTableName();
 
     RowKey getRowKey();
 

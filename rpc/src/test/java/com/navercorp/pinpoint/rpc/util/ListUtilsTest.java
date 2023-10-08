@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,39 +13,48 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.navercorp.pinpoint.rpc.util;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-
 import java.util.ArrayList;
+import java.util.List;
+
+import org.junit.Assert;
+
+import org.junit.Test;
 
 public class ListUtilsTest {
 
     @Test
-    public void testAddIfValueNotNull() {
-        ArrayList<String> strings = new ArrayList<>();
-
-        Assertions.assertTrue(ListUtils.addIfValueNotNull(strings, "foo"));
-        Assertions.assertEquals("foo", strings.get(0));
-
-        Assertions.assertFalse(ListUtils.addIfValueNotNull(strings, null));
+    public void addIfValueNotNullTest() {
+        List<String> list = new ArrayList<String>();
+        
+        ListUtils.addIfValueNotNull(list, "firstString");
+        ListUtils.addIfValueNotNull(list, null);
+        
+        Assert.assertEquals(1, list.size());
     }
-
+    
     @Test
-    public void testAddAllIfAllValuesNotNull() {
-        ArrayList<String> strings = new ArrayList<>();
+    public void addAllIfAllValuesNotNullTest() {
+        List<String> list = new ArrayList<String>();
 
-        Assertions.assertTrue(
-                ListUtils.addAllIfAllValuesNotNull(
-                        strings, new String[]{"a", "b", "c"}));
-        Assertions.assertEquals("a", strings.get(0));
-        Assertions.assertEquals("b", strings.get(1));
-        Assertions.assertEquals("c", strings.get(2));
-
-        Assertions.assertFalse(ListUtils.addAllIfAllValuesNotNull(strings, null));
-        Assertions.assertFalse(ListUtils
-                .addAllIfAllValuesNotNull(strings, new String[]{null}));
+        String[] values = {"firstString", null, "secondString"};
+        
+        ListUtils.addAllIfAllValuesNotNull(list, values);
+        
+        Assert.assertEquals(0, list.size());
     }
+    
+    @Test
+    public void addAllExceptNullValueTest() {
+        List<String> list = new ArrayList<String>();
 
+        String[] values = {"firstString", null, "secondString"};
+        
+        ListUtils.addAllExceptNullValue(list, values);
+        
+        Assert.assertEquals(2, list.size());
+    }
+    
 }

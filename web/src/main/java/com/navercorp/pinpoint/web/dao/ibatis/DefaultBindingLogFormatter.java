@@ -16,7 +16,6 @@
 
 package com.navercorp.pinpoint.web.dao.ibatis;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -39,7 +38,7 @@ public class DefaultBindingLogFormatter implements BindLogFormatter {
     }
 
     public String format(String query, List<String> parameters) {
-        if (StringUtils.isEmpty(query)) {
+        if (isEmpty(query)) {
             return query;
         }
         if (removeWhitespace) {
@@ -52,7 +51,7 @@ public class DefaultBindingLogFormatter implements BindLogFormatter {
 
         for (int i = 0; i < query.length(); ) {
             if (parameters != null && query.charAt(i) == '?') {
-                builder.append(query, queryPrev, i);
+                builder.append(query.substring(queryPrev, i));
                 builder.append(parameters.size() > index ? convert(parameters.get(index)) : null);
                 queryPrev = ++i;
                 index++;
@@ -81,19 +80,22 @@ public class DefaultBindingLogFormatter implements BindLogFormatter {
         }
     }
 
+    public static boolean isEmpty(String str) {
+        return str == null || str.length() == 0;
+    }
 
 
     /**
      * Convert.
      *
-     * @param parameter the parameter
+     * @param paramter the paramter
      * @return the string
      */
-    private String convert(Object parameter) {
-        if (parameter instanceof String || parameter instanceof Date) {
-            return "'" + parameter + "'";
+    private String convert(Object paramter) {
+        if (paramter instanceof String || paramter instanceof Date) {
+            return "'" + paramter + "'";
         }
 
-        return String.valueOf(parameter);
+        return String.valueOf(paramter);
     }
 }

@@ -16,95 +16,72 @@
 
 package com.navercorp.pinpoint.collector.dao.hbase.statistics;
 
-import com.navercorp.pinpoint.common.hbase.HbaseColumnFamily;
+import com.navercorp.pinpoint.collector.util.ConcurrentCounterMap;
 
-import com.sematext.hbase.wd.RowKeyDistributorByHashPrefix;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Increment;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * @author emeroad
- * @author HyunGil Jeong
  */
 public class RowKeyMerge {
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final byte[] family;
 
-    public RowKeyMerge(HbaseColumnFamily columnFamily) {
-        this(columnFamily.getName());
-    }
-
     public RowKeyMerge(byte[] family) {
-        Objects.requireNonNull(family, "family");
-
+        if (family == null) {
+            throw new NullPointerException("family must not be null");
+        }
         this.family = Arrays.copyOf(family, family.length);
     }
 
-    public Map<TableName, List<Increment>> createBulkIncrement(Map<RowInfo, Long> data, RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix) {
+    public  List<Increment> createBulkIncrement(Map<RowInfo, ConcurrentCounterMap.LongAdder> data) {
         if (data.isEmpty()) {
-            return Collections.emptyMap();
+            return Collections.emptyList();
         }
 
-        final Map<TableName, List<Increment>> tableIncrementMap = new HashMap<>();
-        final Map<TableName, Map<RowKey, List<ColumnName>>> tableRowKeyMap = mergeRowKeys(data);
+        final Map<RowKey, List<ColumnName>> rowkeyMerge = rowKeyBaseMerge(data);
 
-        for (Map.Entry<TableName, Map<RowKey, List<ColumnName>>> tableRowKeys : tableRowKeyMap.entrySet()) {
-            final TableName tableName = tableRowKeys.getKey();
-            final List<Increment> incrementList = new ArrayList<>();
-            for (Map.Entry<RowKey, List<ColumnName>> rowKeyEntry : tableRowKeys.getValue().entrySet()) {
-                Increment increment = createIncrement(rowKeyEntry, rowKeyDistributorByHashPrefix);
-                incrementList.add(increment);
-            }
-            tableIncrementMap.put(tableName, incrementList);
+        List<Increment> incrementList = new ArrayList<Increment>();
+        for (Map.Entry<RowKey, List<ColumnName>> rowKeyEntry : rowkeyMerge.entrySet()) {
+            Increment increment = createIncrement(rowKeyEntry);
+            incrementList.add(increment);
         }
-        return tableIncrementMap;
+        return incrementList;
     }
 
-    private Increment createIncrement(Map.Entry<RowKey, List<ColumnName>> rowKeyEntry, RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix) {
+    private Increment createIncrement(Map.Entry<RowKey, List<ColumnName>> rowKeyEntry) {
         RowKey rowKey = rowKeyEntry.getKey();
-        byte[] key = getRowKey(rowKey, rowKeyDistributorByHashPrefix);
-        final Increment increment = new Increment(key);
-        for (ColumnName columnName : rowKeyEntry.getValue()) {
+        final Increment increment = new Increment(rowKey.getRowKey());
+        for(ColumnName columnName : rowKeyEntry.getValue()) {
             increment.addColumn(family, columnName.getColumnName(), columnName.getCallCount());
         }
         logger.trace("create increment row:{}, column:{}", rowKey, rowKeyEntry.getValue());
         return increment;
     }
 
-    private byte[] getRowKey(RowKey rowKey, RowKeyDistributorByHashPrefix rowKeyDistributorByHashPrefix) {
-        if (rowKeyDistributorByHashPrefix == null) {
-            return rowKey.getRowKey();
-        } else {
-            return rowKeyDistributorByHashPrefix.getDistributedKey(rowKey.getRowKey());
-        }
-    }
+    private Map<RowKey, List<ColumnName>> rowKeyBaseMerge(Map<RowInfo, ConcurrentCounterMap.LongAdder> data) {
+        final Map<RowKey, List<ColumnName>> merge =  new HashMap<RowKey, List<ColumnName>>();
 
-    private Map<TableName, Map<RowKey, List<ColumnName>>> mergeRowKeys(Map<RowInfo, Long> data) {
-        final Map<TableName, Map<RowKey, List<ColumnName>>> tables = new HashMap<>();
-
-        for (Map.Entry<RowInfo, Long> entry : data.entrySet()) {
+        for (Map.Entry<RowInfo, ConcurrentCounterMap.LongAdder> entry : data.entrySet()) {
             final RowInfo rowInfo = entry.getKey();
             // write callCount to columnName and throw away
-            long callCount = entry.getValue();
+            long callCount = entry.getValue().get();
             rowInfo.getColumnName().setCallCount(callCount);
 
-            final TableName tableName = rowInfo.getTableName();
-            final RowKey rowKey = rowInfo.getRowKey();
-
-            Map<RowKey, List<ColumnName>> rows = tables.computeIfAbsent(tableName, k -> new HashMap<>());
-            List<ColumnName> columnNames = rows.computeIfAbsent(rowKey, k -> new ArrayList<>());
-            columnNames.add(rowInfo.getColumnName());
+            RowKey rowKey = rowInfo.getRowKey();
+            List<ColumnName> oldList = merge.get(rowKey);
+            if (oldList == null) {
+                List<ColumnName> newList = new ArrayList<ColumnName>();
+                newList.add(rowInfo.getColumnName());
+                merge.put(rowKey, newList);
+            } else {
+                oldList.add(rowInfo.getColumnName());
+            }
         }
-        return tables;
+        return merge;
     }
 }

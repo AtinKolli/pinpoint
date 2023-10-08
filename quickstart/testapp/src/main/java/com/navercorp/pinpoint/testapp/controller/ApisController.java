@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
@@ -12,10 +11,12 @@ import java.util.TreeSet;
 
 import javax.annotation.PostConstruct;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.CollectionUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -25,15 +26,16 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  */
 import com.navercorp.pinpoint.testapp.util.Description;
 
-@RestController(value = "apisController")
+@Controller(value = "apisController")
 public class ApisController {
 
     private final RequestMappingHandlerMapping handlerMapping;
 
-    private final Map<String, SortedSet<RequestMappedUri>> apiMappings = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private final Map<String, SortedSet<RequestMappedUri>> apiMappings = new TreeMap<String, SortedSet<RequestMappedUri>>(String.CASE_INSENSITIVE_ORDER);
 
+    @Autowired
     public ApisController(RequestMappingHandlerMapping handlerMapping) {
-        this.handlerMapping = Objects.requireNonNull(handlerMapping, "handlerMapping");
+        this.handlerMapping = handlerMapping;
     }
 
     @PostConstruct
@@ -59,7 +61,7 @@ public class ApisController {
             alreadyMappedRequests.addAll(createRequestMappedApis(handlerMethod, mappedRequests));
         }
     }
-
+    
     private Set<RequestMappedUri> createRequestMappedApis(HandlerMethod handlerMethod, Set<String> mappedUris) {
         if (CollectionUtils.isEmpty(mappedUris)) {
             return Collections.emptySet();
@@ -72,33 +74,33 @@ public class ApisController {
         return requestMappedUris;
     }
 
-    @GetMapping(value = {"/", "/index.html", "/apis"})
+    @RequestMapping(value = { "/index.html", "/apis" }, method = RequestMethod.GET)
     public String apis(Model model) {
         model.addAttribute("apiMappings", this.apiMappings);
         return "apis";
     }
 
     public static class RequestMappedUri {
-
+        
         private final String mappedUri;
         private final String description;
 
         private RequestMappedUri(String mappedUri, Description description) {
             if (mappedUri == null) {
-                throw new IllegalArgumentException("mappedUri");
+                throw new IllegalArgumentException("mappedUri must not be null");
             }
             this.mappedUri = mappedUri;
             this.description = description == null ? "" : description.value();
         }
-
+        
         public String getMappedUri() {
             return this.mappedUri;
         }
-
+        
         public String getDescription() {
             return this.description;
         }
-
+        
         private static final Comparator<RequestMappedUri> MAPPED_URI_ORDER = new Comparator<RequestMappedUri>() {
             @Override
             public int compare(RequestMappedUri arg0, RequestMappedUri arg1) {
@@ -144,5 +146,7 @@ public class ApisController {
         public String toString() {
             return "RequestMappedUri [mappedUri=" + mappedUri + ", description=" + description + "]";
         }
+        
     }
+
 }

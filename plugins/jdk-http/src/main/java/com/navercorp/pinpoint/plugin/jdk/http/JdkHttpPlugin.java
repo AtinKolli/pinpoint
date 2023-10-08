@@ -15,97 +15,39 @@ package com.navercorp.pinpoint.plugin.jdk.http;
  * limitations under the License.
  */
 
-import java.security.ProtectionDomain;
+import static com.navercorp.pinpoint.bootstrap.plugin.transformer.ClassConditions.*;
 
-import com.navercorp.pinpoint.bootstrap.instrument.InstrumentClass;
-import com.navercorp.pinpoint.bootstrap.instrument.InstrumentException;
-import com.navercorp.pinpoint.bootstrap.instrument.InstrumentMethod;
-import com.navercorp.pinpoint.bootstrap.instrument.Instrumentor;
-import com.navercorp.pinpoint.bootstrap.instrument.transformer.TransformCallback;
-import com.navercorp.pinpoint.bootstrap.instrument.transformer.TransformTemplate;
-import com.navercorp.pinpoint.bootstrap.instrument.transformer.TransformTemplateAware;
-import com.navercorp.pinpoint.bootstrap.interceptor.scope.ExecutionPolicy;
-import com.navercorp.pinpoint.bootstrap.logging.PLogger;
-import com.navercorp.pinpoint.bootstrap.logging.PLoggerFactory;
 import com.navercorp.pinpoint.bootstrap.plugin.ProfilerPlugin;
 import com.navercorp.pinpoint.bootstrap.plugin.ProfilerPluginSetupContext;
-import com.navercorp.pinpoint.bootstrap.plugin.util.InstrumentUtils;
-import com.navercorp.pinpoint.plugin.jdk.http.interceptor.HttpURLConnectionInterceptor;
-import com.navercorp.pinpoint.plugin.jdk.http.interceptor.HttpsURLConnectionImplInterceptor;
+import com.navercorp.pinpoint.bootstrap.plugin.transformer.ClassFileTransformerBuilder;
+import com.navercorp.pinpoint.bootstrap.plugin.transformer.ConditionalClassFileTransformerBuilder;
+import com.navercorp.pinpoint.bootstrap.plugin.transformer.ConditionalClassFileTransformerSetup;
 
 /**
  * 
  * @author Jongho Moon
- * @author yjqg6666
  *
  */
-public class JdkHttpPlugin implements ProfilerPlugin, TransformTemplateAware {
-
-    private TransformTemplate transformTemplate;
-
-    private final PLogger logger = PLoggerFactory.getLogger(this.getClass());
-
-    public static final String INTERCEPT_HTTPS_CLASS_NAME = "sun.net.www.protocol.https.HttpsURLConnectionImpl";
+public class JdkHttpPlugin implements ProfilerPlugin {
 
     @Override
     public void setup(ProfilerPluginSetupContext context) {
-        JdkHttpPluginConfig config = new JdkHttpPluginConfig(context.getConfig());
-        if (!config.isEnable()) {
-            logger.info("{} disabled", this.getClass().getSimpleName());
-            return;
-        }
-        transformTemplate.transform("sun.net.www.protocol.http.HttpURLConnection", HttpURLConnectionTransform.class);
-        transformTemplate.transform(INTERCEPT_HTTPS_CLASS_NAME, HttpsURLConnectionImplTransform.class);
+        ClassFileTransformerBuilder builder = context.getClassEditorBuilder("sun.net.www.protocol.http.HttpURLConnection");
+    
+        builder.injectFieldAccessor("connected");
+        builder.injectInterceptor("com.navercorp.pinpoint.plugin.jdk.http.interceptor.HttpURLConnectionInterceptor");
+        
+        // JDK 8
+        builder.conditional(hasField("connecting", "boolean"), 
+                new ConditionalClassFileTransformerSetup() {
+                    @Override
+                    public void setup(ConditionalClassFileTransformerBuilder conditional) {
+                        conditional.injectFieldAccessor("connecting");
+                    }
+                }
+        );
+        
+        context.addClassFileTransformer(builder.build());
     }
 
-    public static class HttpURLConnectionTransform implements TransformCallback {
-
-        @Override
-        public byte[] doInTransform(Instrumentor instrumentor, ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws InstrumentException {
-            InstrumentClass target = instrumentor.getInstrumentClass(loader, className, classfileBuffer);
-
-            target.addGetter(ConnectedGetter.class, "connected");
-
-            if (target.hasField("connecting", "boolean")) {
-                target.addGetter(ConnectingGetter.class, "connecting");
-            }
-
-            final InstrumentMethod connectMethod = InstrumentUtils.findMethod(target, "connect");
-            connectMethod.addScopedInterceptor(HttpURLConnectionInterceptor.class, "HttpURLConnectionConnect", ExecutionPolicy.ALWAYS);
-
-            final InstrumentMethod getInputStreamMethod = InstrumentUtils.findMethod(target, "getInputStream");
-            getInputStreamMethod.addScopedInterceptor(HttpURLConnectionInterceptor.class, "HttpURLConnectionInput", ExecutionPolicy.BOUNDARY);
-
-            final InstrumentMethod getOutputStreamMethod = InstrumentUtils.findMethod(target, "getOutputStream");
-            getOutputStreamMethod.addScopedInterceptor(HttpURLConnectionInterceptor.class, "HttpURLConnectionOutput", ExecutionPolicy.BOUNDARY);
-
-            return target.toBytecode();
-        }
-    }
-
-    public static class HttpsURLConnectionImplTransform implements TransformCallback {
-
-        @Override
-        public byte[] doInTransform(Instrumentor instrumentor, ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws InstrumentException {
-            InstrumentClass target = instrumentor.getInstrumentClass(loader, className, classfileBuffer);
-
-            target.addGetter(DelegateGetter.class, "delegate");
-
-            final InstrumentMethod connectMethod = InstrumentUtils.findMethod(target, "connect");
-            connectMethod.addScopedInterceptor(HttpsURLConnectionImplInterceptor.class, "HttpURLConnectionConnect", ExecutionPolicy.ALWAYS);
-
-            final InstrumentMethod getInputStreamMethod = InstrumentUtils.findMethod(target, "getInputStream");
-            getInputStreamMethod.addScopedInterceptor(HttpsURLConnectionImplInterceptor.class, "HttpURLConnectionInput", ExecutionPolicy.BOUNDARY);
-
-            final InstrumentMethod getOutputStreamMethod = InstrumentUtils.findMethod(target, "getOutputStream");
-            getOutputStreamMethod.addScopedInterceptor(HttpsURLConnectionImplInterceptor.class, "HttpURLConnectionOutput", ExecutionPolicy.BOUNDARY);
-
-            return target.toBytecode();
-        }
-    }
-
-    @Override
-    public void setTransformTemplate(TransformTemplate transformTemplate) {
-        this.transformTemplate = transformTemplate;
-    }
 }

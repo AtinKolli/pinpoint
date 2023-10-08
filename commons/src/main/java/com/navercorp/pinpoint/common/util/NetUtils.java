@@ -16,19 +16,18 @@
 
 package com.navercorp.pinpoint.common.util;
 
-import com.navercorp.pinpoint.common.plugin.util.HostAndPort;
-
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * @author koo.taejin
@@ -37,77 +36,32 @@ public final class NetUtils {
 
     public static final String LOOPBACK_ADDRESS_V4 = "127.0.0.1";
 
-
-    private static final HostAndPortFactory<InetSocketAddress> inetSocketAddressFactory = new HostAndPortFactory<InetSocketAddress>() {
-        @Override
-        public InetSocketAddress newInstance(String host, int port) {
-            if (!HostAndPort.isValidPort(port)) {
-                return null;
-            }
-            return new InetSocketAddress(host, port);
-        }
-    };
-
     private NetUtils() {
     }
 
-    public static List<InetSocketAddress> toInetSocketAddressList(List<String> addressList) {
-        return toHostAndPortList(addressList, inetSocketAddressFactory);
-    }
+    public static List<InetSocketAddress> toInetSocketAddressLIst(List<String> addressList) {
+        List<InetSocketAddress> inetSocketAddressList = new ArrayList<InetSocketAddress>();
 
-
-    public interface HostAndPortFactory<T> {
-        T newInstance(String host, int port);
-    }
-
-    public static <T> List<T> toHostAndPortList(List<String> addressList, HostAndPortFactory<T> hostAndPortFactory) {
-        if (CollectionUtils.isEmpty(addressList)) {
-            return Collections.emptyList();
-        }
-        final List<T> hostAndPortList = new ArrayList<T>(addressList.size());
         for (String address : addressList) {
-            final T hostAndPort = parseHostAndPort(address, hostAndPortFactory);
-            if (hostAndPort != null) {
-                hostAndPortList.add(hostAndPort);
+            InetSocketAddress inetSocketAddress = toInetSocketAddress(address);
+            if (inetSocketAddress != null) {
+                inetSocketAddressList.add(inetSocketAddress);
             }
         }
-        return hostAndPortList;
-    }
 
+        return inetSocketAddressList;
+    }
 
     public static InetSocketAddress toInetSocketAddress(String address) {
-        return parseHostAndPort(address, inetSocketAddressFactory);
-    }
-
-    public  static <T> T parseHostAndPort(String address, HostAndPortFactory<T> hostAndPortFactory) {
-        if (StringUtils.isEmpty(address)) {
-            return null;
-        }
-        Objects.requireNonNull(hostAndPortFactory, "hostAndPortFactory");
-
-        final int hostIndex = address.indexOf(':');
-        if (hostIndex == -1) {
-            return null;
-        }
-        final String host = address.substring(0, hostIndex);
-        final String portString = address.substring(hostIndex + 1);
-        final int port = parseInteger(portString, HostAndPort.NO_PORT);
-        return hostAndPortFactory.newInstance(host, port);
-    }
-
-    /**
-     * TODO duplicate code
-     * com.navercorp.pinpoint.bootstrap.util.NumberUtils.parseInteger();
-     */
-    private static int parseInteger(String str, int defaultInt) {
-        if (str == null) {
-            return defaultInt;
-        }
         try {
-            return Integer.parseInt(str);
-        } catch (NumberFormatException e) {
-            return defaultInt;
+            URI uri = new URI("pinpoint://" + address);
+
+            return new InetSocketAddress(uri.getHost(), uri.getPort());
+        } catch (URISyntaxException ignore) {
+            // skip
         }
+
+        return null;
     }
 
     public static String getLocalV4Ip() {
@@ -117,30 +71,30 @@ public final class NetUtils {
             if (validationIpV4FormatAddress(localIp)) {
                 return localIp;
             }
-        } catch (UnknownHostException ignored) {
+        } catch (UnknownHostException ignore) {
             // skip
         }
         return LOOPBACK_ADDRESS_V4;
     }
 
     /**
-     * Returns a list of ip addresses on this machine that is accessible from a remote source.
+     * Returns a list of ip addreses on this machine that is accessible from a remote source.
      * If no network interfaces can be found on this machine, returns an empty List.
      */
     public static List<String> getLocalV4IpList() {
+        List<String> result = new ArrayList<String>();
 
         Enumeration<NetworkInterface> interfaces = null;
         try {
             interfaces = NetworkInterface.getNetworkInterfaces();
-        } catch (SocketException ignored) {
+        } catch (SocketException ignore) {
             // skip
         }
 
         if (interfaces == null) {
-            return Collections.emptyList();
+            return Collections.EMPTY_LIST;
         }
 
-        List<String> result = new ArrayList<>();
         while (interfaces.hasMoreElements()) {
             NetworkInterface current = interfaces.nextElement();
             if (isSkipIp(current)) {
@@ -169,7 +123,7 @@ public final class NetUtils {
                 return true;
             }
             return false;
-        } catch (Exception ignored) {
+        } catch (Exception ignore) {
             // skip
         }
         return true;
@@ -177,25 +131,30 @@ public final class NetUtils {
 
 
     public static boolean validationIpPortV4FormatAddress(String address) {
+        try {
+            int splitIndex = address.indexOf(':');
 
-        final int splitIndex = address.indexOf(':');
-        if (splitIndex == -1 || splitIndex + 1 >= address.length()) {
-            return false;
+            if (splitIndex == -1 || splitIndex + 1 >= address.length()) {
+                return false;
+            }
+
+            String ip = address.substring(0, splitIndex);
+
+            if (!validationIpV4FormatAddress(ip)) {
+                return false;
+            }
+
+            String port = address.substring(splitIndex + 1, address.length());
+            if (Integer.parseInt(port) > 65535) {
+                return false;
+            }
+
+            return true;
+        } catch (Exception ignore) {
+            //skip
         }
 
-        final String ip = address.substring(0, splitIndex);
-        if (!validationIpV4FormatAddress(ip)) {
-            return false;
-        }
-
-        final String portString = address.substring(splitIndex + 1);
-        final int port = parseInteger(portString, HostAndPort.NO_PORT);
-        if (!HostAndPort.isValidPort(port)) {
-            return false;
-        }
-
-        return true;
-
+        return false;
     }
 
     public static boolean validationIpV4FormatAddress(String address) {
@@ -211,7 +170,7 @@ public final class NetUtils {
                 }
             }
             return true;
-        } catch (NumberFormatException ignored) {
+        } catch (NumberFormatException ignore) {
             // skip
         }
 

@@ -16,11 +16,11 @@
 
 package com.navercorp.pinpoint.collector.dao;
 
-import com.navercorp.pinpoint.common.server.bo.SpanBo;
+import com.navercorp.pinpoint.thrift.dto.TSpan;
 
 /**
  * @author emeroad
  */
 public interface ApplicationTraceIndexDao {
-    void insert(SpanBo span);
+    void insert(TSpan span);
 }

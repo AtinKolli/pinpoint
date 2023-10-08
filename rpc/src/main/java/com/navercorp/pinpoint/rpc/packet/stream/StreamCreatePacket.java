@@ -16,12 +16,12 @@
 
 package com.navercorp.pinpoint.rpc.packet.stream;
 
-import java.util.Objects;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
 import com.navercorp.pinpoint.rpc.packet.PacketType;
 import com.navercorp.pinpoint.rpc.packet.PayloadPacket;
+import com.navercorp.pinpoint.rpc.util.AssertUtils;
 
 /**
  * @author koo.taejin
@@ -35,7 +35,8 @@ public class StreamCreatePacket extends BasicStreamPacket {
     public StreamCreatePacket(int streamChannelId, byte[] payload) {
         super(streamChannelId);
 
-        this.payload = Objects.requireNonNull(payload, "payload");
+        AssertUtils.assertNotNull(payload);
+        this.payload = payload;
     }
 
     @Override

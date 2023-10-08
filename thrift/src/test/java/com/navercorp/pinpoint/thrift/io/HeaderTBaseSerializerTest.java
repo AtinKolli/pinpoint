@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,14 +16,18 @@
 
 package com.navercorp.pinpoint.thrift.io;
 
-import com.navercorp.pinpoint.io.request.Message;
 import com.navercorp.pinpoint.thrift.dto.TAgentInfo;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.thrift.TBase;
+import com.navercorp.pinpoint.thrift.io.Header;
+import com.navercorp.pinpoint.thrift.io.HeaderTBaseDeserializer;
+import com.navercorp.pinpoint.thrift.io.HeaderTBaseDeserializerFactory;
+import com.navercorp.pinpoint.thrift.io.HeaderTBaseSerializer;
+import com.navercorp.pinpoint.thrift.io.HeaderTBaseSerializerFactory;
+
 import org.apache.thrift.TException;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
@@ -31,17 +35,17 @@ import java.util.Arrays;
  * @author emeroad
  */
 public class HeaderTBaseSerializerTest {
-    private final Logger logger = LogManager.getLogger(HeaderTBaseSerializerTest.class);
+    private final Logger logger = LoggerFactory.getLogger(HeaderTBaseSerializerTest.class.getName());
 
 
     @Test
     public void testSerialize1() throws Exception {
-        HeaderTBaseSerializer serializer = new HeaderTBaseSerializerFactory().createSerializer();
+        HeaderTBaseSerializer serializer = new HeaderTBaseSerializerFactory(false).createSerializer();
         HeaderTBaseDeserializer deserializer = new HeaderTBaseDeserializerFactory().createDeserializer();
 
         test(serializer, deserializer);
     }
-
+    
     @Test
     public void testSerialize2() throws Exception {
         HeaderTBaseSerializer serializer = new HeaderTBaseSerializerFactory().createSerializer();
@@ -49,8 +53,12 @@ public class HeaderTBaseSerializerTest {
 
         test(serializer, deserializer);
     }
-
+    
     private void test(HeaderTBaseSerializer serializer, HeaderTBaseDeserializer deserializer) throws TException {
+
+        Header header = new Header();
+        // 10 is JVMInfoThriftDTO type
+        header.setType((short) 10);
 
         TAgentInfo tAgentInfo = new TAgentInfo();
         tAgentInfo.setAgentId("agentId");
@@ -60,15 +68,14 @@ public class HeaderTBaseSerializerTest {
         byte[] serialize = serializer.serialize(tAgentInfo);
         dump(serialize);
 
-        Message<TBase<?, ?>> message = deserializer.deserialize(serialize);
-        TAgentInfo deserialize = (TAgentInfo) message.getData();
+        TAgentInfo deserialize = (TAgentInfo) deserializer.deserialize(serialize);
         logger.debug("deserializer:{}", deserialize.getClass());
 
-        Assertions.assertEquals(deserialize, tAgentInfo);
+        Assert.assertEquals(deserialize, tAgentInfo);
     }
 
     public void dump(byte[] data) {
         String s = Arrays.toString(data);
-        logger.trace("size:{} data:{}", data.length, s);
+        logger.debug("size:{} data:{}", data.length, s);
     }
 }

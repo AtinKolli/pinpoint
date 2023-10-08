@@ -16,27 +16,16 @@
 
 package com.navercorp.pinpoint.collector.cluster.route;
 
-import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
-
-import com.navercorp.pinpoint.collector.cluster.route.filter.RouteFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DefaultRouteFilterChain<T extends RouteEvent> implements RouteFilterChain<T> {
 
-    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final List<RouteFilter<T>> filterList;
-    
-    public DefaultRouteFilterChain() {
-        this.filterList = new CopyOnWriteArrayList<>();
-    }
-    
-    public DefaultRouteFilterChain(List<RouteFilter<T>> filterList) {
-        this.filterList = new CopyOnWriteArrayList<>(filterList);
-    }
+    private final CopyOnWriteArrayList<RouteFilter<T>> filterList = new CopyOnWriteArrayList<RouteFilter<T>>();
 
     @Override
     public void addLast(RouteFilter<T> filter) {
@@ -50,7 +39,7 @@ public class DefaultRouteFilterChain<T extends RouteEvent> implements RouteFilte
                 filter.doEvent(event);
             } catch (Exception e) {
                 if (logger.isWarnEnabled()) {
-                    logger.warn(filter.getClass().getSimpleName() + " filter occurred exception. Error:" + e.getMessage() + ".", e);
+                    logger.warn(filter.getClass().getSimpleName() + " filter occured exception. Error:" + e.getMessage() + ".", e);
                 }
             }
         }

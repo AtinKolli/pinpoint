@@ -21,7 +21,6 @@ import com.navercorp.pinpoint.profiler.context.SpanEvent;
 
 /**
  * @author emeroad
- * @author jaehong.kim
  */
 public interface Storage {
 
@@ -36,8 +35,9 @@ public interface Storage {
      * @param span
      */
     void store(Span span);
-
-    void flush();
-
-    void close();
+    
+    void setAsync(boolean async);
+    
+    boolean isAsync();
+    
 }

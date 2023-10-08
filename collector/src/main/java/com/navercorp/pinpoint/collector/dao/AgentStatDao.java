@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 NAVER Corp.
+ * Copyright 2014 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,12 @@
 
 package com.navercorp.pinpoint.collector.dao;
 
-import com.navercorp.pinpoint.common.server.bo.stat.AgentStatBo;
-import com.navercorp.pinpoint.common.server.bo.stat.AgentStatDataPoint;
-import org.springframework.stereotype.Repository;
-
-import java.util.List;
+import com.navercorp.pinpoint.thrift.dto.TAgentStat;
 
 /**
- * @author HyunGil Jeong
+ * @author emeroad
+ * @author hyungil.jeong
  */
-@Repository
-public interface AgentStatDao<T extends AgentStatDataPoint> {
-    void insert(String agentId, List<T> agentStatDataPoints);
-
-    void dispatch(AgentStatBo agentStatBo);
+public interface AgentStatDao {
+    void insert(TAgentStat agentStat);
 }

@@ -16,12 +16,10 @@
 
 package com.navercorp.pinpoint.thrift.io;
 
-import org.apache.thrift.TBase;
-
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Objects;
+
+import org.apache.thrift.TBase;
 
 /**
  * @author koo.taejin
@@ -31,61 +29,19 @@ public enum TCommandTypeVersion {
     // Match with agent version
     V_1_0_2_SNAPSHOT("1.0.2-SNAPSHOT", TCommandType.RESULT, TCommandType.THREAD_DUMP),
     V_1_0_2("1.0.2", V_1_0_2_SNAPSHOT),
-
-    V_1_0_3_SNAPSHOT("1.0.3-SNAPSHOT", V_1_0_2,
-            TCommandType.ECHO, TCommandType.THREAD_DUMP_RESPONSE,
-            TCommandType.TRANSFER),
+    V_1_0_3_SNAPSHOT("1.0.3-SNAPSHOT", V_1_0_2, TCommandType.ECHO, TCommandType.TRANSFER, TCommandType.THREAD_DUMP_RESPONSE),
     V_1_0_3("1.0.3", V_1_0_3_SNAPSHOT),
-
     V_1_0_4_SNAPSHOT("1.0.4-SNAPSHOT", V_1_0_3),
     V_1_0_4("1.0.4", V_1_0_4_SNAPSHOT),
-
-
-    V_1_1_0_SNAPSHOT("1.1.0-SNAPSHOT", V_1_0_4),
-    V_1_1_0("1.1.0", V_1_1_0_SNAPSHOT),
-
-    V_1_1_1_SNAPSHOT("1.1.1-SNAPSHOT", V_1_1_0),
-    V_1_1_1("1.1.1", V_1_1_1_SNAPSHOT),
-
-    V_1_1_2_SNAPSHOT("1.1.2-SNAPSHOT", V_1_1_1),
-    V_1_1_2("1.1.2", V_1_1_2_SNAPSHOT),
-
-    V_1_1_3_SNAPSHOT("1.1.3-SNAPSHOT", V_1_1_2),
-
-
-    V_1_5_0_SNAPSHOT("1.5.0-SNAPSHOT", V_1_1_1,
-            TCommandType.ACTIVE_THREAD_COUNT, TCommandType.ACTIVE_THREAD_COUNT_RESPONSE,
-            TCommandType.TRANSFER_RESPONSE),
-    V_1_5_0("1.5.0", V_1_5_0_SNAPSHOT),
-
-    V_1_5_1_SNAPSHOT("1.5.1-SNAPSHOT", V_1_5_0),
-
-    V_1_5_1("1.5.1", V_1_5_1_SNAPSHOT),
-
-    V_1_5_2_SNAPSHOT("1.5.2-SNAPSHOT", V_1_5_1),
-
-    V_1_5_2("1.5.2", V_1_5_1_SNAPSHOT),
-
-    V_1_5_3_SNAPSHOT("1.5.3-SNAPSHOT", V_1_5_2),
-
-    V_1_6_0_SNAPSHOT("1.6.0-SNAPSHOT", V_1_5_2),
-
-    V_1_6_0_RC1("1.6.0-RC1", V_1_6_0_SNAPSHOT),
-
-    V_1_6_0_RC2("1.6.0-RC2", V_1_6_0_RC1),
-
-    V_1_6_0("1.6.0", V_1_6_0_RC2),
-
-    V_1_6_1_SNAPSHOT("1.6.1-SNAPSHOT", V_1_6_0),
-
+    V_1_1_0("1.1.0-SNAPSHOT", V_1_0_4_SNAPSHOT),
+    
+    
     UNKNOWN("UNKNOWN");
 
     private final String versionName;
-    private final List<TCommandType> supportCommandList = new ArrayList<>();
+    private final List<TCommandType> supportCommandList = new ArrayList<TCommandType>();
 
-    private static final EnumSet<TCommandTypeVersion> ALL = EnumSet.allOf(TCommandTypeVersion.class);
-
-    TCommandTypeVersion(String versionName, TCommandTypeVersion version, TCommandType... supportCommandArray) {
+    private TCommandTypeVersion(String versionName, TCommandTypeVersion version, TCommandType... supportCommandArray) {
         this.versionName = versionName;
 
         for (TCommandType supportCommand : version.getSupportCommandList()) {
@@ -93,11 +49,11 @@ public enum TCommandTypeVersion {
         }
 
         for (TCommandType supportCommand : supportCommandArray) {
-            supportCommandList.add(supportCommand);
+            getSupportCommandList().add(supportCommand);
         }
     }
 
-    TCommandTypeVersion(String versionName, TCommandType... supportCommandArray) {
+    private TCommandTypeVersion(String versionName, TCommandType... supportCommandArray) {
         this.versionName = versionName;
 
         for (TCommandType supportCommand : supportCommandArray) {
@@ -109,7 +65,7 @@ public enum TCommandTypeVersion {
         return supportCommandList;
     }
 
-    public boolean isSupportCommand(TBase<?, ?> command) {
+    public boolean isSupportCommand(TBase command) {
         if (command == null) {
             return false;
         }
@@ -132,9 +88,11 @@ public enum TCommandTypeVersion {
     }
 
     public static TCommandTypeVersion getVersion(String version) {
-        Objects.requireNonNull(version, "version");
+        if (version == null) {
+            throw new NullPointerException("version may not be null.");
+        }
 
-        for (TCommandTypeVersion versionType : ALL) {
+        for (TCommandTypeVersion versionType : TCommandTypeVersion.values()) {
             if (versionType.getVersionName().equals(version)) {
                 return versionType;
             }
